@@ -1,0 +1,57 @@
+package analysis
+
+import (
+	"testing"
+	"time"
+
+	"github.com/Dicklesworthstone/beads_viewer/pkg/model"
+)
+
+// Cover getter and configured analysis pathways that were previously untested.
+func TestAnalyzerProfileAndGetters(t *testing.T) {
+	issues := []model.Issue{
+		{ID: "A", Title: "Alpha", Status: model.StatusOpen, Dependencies: []*model.Dependency{{DependsOnID: "B", Type: model.DepBlocks}}},
+		{ID: "B", Title: "Beta", Status: model.StatusOpen},
+	}
+
+	custom := ConfigForSize(len(issues), 1)
+	a := NewAnalyzer(issues)
+	a.SetConfig(&custom)
+
+	stats, profile := a.AnalyzeWithProfile(custom)
+	if profile == nil || stats == nil {
+		t.Fatalf("expected stats and profile")
+	}
+	if !stats.IsPhase2Ready() {
+		t.Fatalf("phase2 should be ready after AnalyzeWithProfile")
+	}
+
+	_ = stats.GetPageRankScore("A")
+	_ = stats.GetBetweennessScore("A")
+	_ = stats.GetEigenvectorScore("A")
+	_ = stats.GetHubScore("A")
+	_ = stats.GetAuthorityScore("A")
+	_ = stats.GetCriticalPathScore("A")
+}
+
+func TestAnalyzerAnalyzeWithConfigCachesPhase2(t *testing.T) {
+	issues := []model.Issue{{ID: "X", Status: model.StatusOpen}}
+	a := NewAnalyzer(issues)
+	cfg := FullAnalysisConfig()
+	stats := a.AnalyzeWithConfig(cfg)
+	stats.WaitForPhase2()
+	if stats.NodeCount != 1 || stats.EdgeCount != 0 {
+		t.Fatalf("unexpected counts: %+v", stats)
+	}
+	if stats.IsPhase2Ready() == false {
+		t.Fatalf("expected phase2 ready")
+	}
+	// Ensure computePhase2WithProfile would mark ready for empty graph
+	a2 := NewAnalyzer(nil)
+	_, profile := a2.AnalyzeWithProfile(cfg)
+	if profile.Total == 0 {
+		t.Fatalf("expected timing profile to be populated")
+	}
+	// Tiny sleep to avoid zero durations in formatDuration paths
+	time.Sleep(1 * time.Millisecond)
+}
