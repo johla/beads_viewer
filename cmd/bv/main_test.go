@@ -1,6 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -32,6 +36,52 @@ func TestFilterByRepo_CaseInsensitiveAndFlexibleSeparators(t *testing.T) {
 		got := filterByRepo(issues, tt.filter)
 		if len(got) != tt.expected {
 			t.Errorf("filterByRepo(%q) = %d issues, want %d", tt.filter, len(got), tt.expected)
+		}
+	}
+}
+
+func TestRobotFlagsOutputJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	beads := `{"id":"A","title":"Root","status":"open","priority":1,"issue_type":"task"}
+{"id":"B","title":"Blocked","status":"blocked","priority":2,"issue_type":"task","dependencies":[{"depends_on_id":"A","type":"blocks"}]}`
+
+	if err := os.WriteFile(filepath.Join(tmpDir, ".beads.jsonl"), []byte(beads), 0644); err != nil {
+		t.Fatalf("write beads: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmpDir, ".beads"), 0755); err != nil {
+		t.Fatalf("mkdir .beads: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, ".beads", "beads.jsonl"), []byte(beads), 0644); err != nil {
+		t.Fatalf("write beads dir: %v", err)
+	}
+
+	// Build a temporary bv binary using the repo module
+	bin := filepath.Join(tmpDir, "bv")
+	build := exec.Command("go", "build", "-C", repoRoot(t), "-o", bin, "./cmd/bv")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build bv: %v\n%s", err, out)
+	}
+
+	run := func(args ...string) []byte {
+		t.Helper()
+		cmd := exec.Command(bin, args...)
+		cmd.Dir = tmpDir
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("command %v failed: %v\n%s", args, err, out)
+		}
+		return out
+	}
+
+	for _, flag := range [][]string{
+		{"--robot-plan"},
+		{"--robot-insights"},
+		{"--robot-priority"},
+		{"--robot-recipes"},
+	} {
+		out := run(flag...)
+		if !json.Valid(out) {
+			t.Fatalf("%v did not return valid JSON: %s", flag, string(out))
 		}
 	}
 }
@@ -107,6 +157,32 @@ func TestApplyRecipeFilters_TagsAndDates(t *testing.T) {
 	}
 }
 
+func TestApplyRecipeFilters_DatesBlockersAndPrefix(t *testing.T) {
+	now := time.Now()
+	early := now.Add(-72 * time.Hour)
+	issues := []model.Issue{
+		{ID: "API-1", Title: "Fresh", CreatedAt: now, UpdatedAt: now},
+		{ID: "API-2", Title: "Stale", CreatedAt: early, UpdatedAt: early,
+			Dependencies: []*model.Dependency{{DependsOnID: "API-1", Type: model.DepBlocks}}},
+	}
+	r := &recipe.Recipe{Filters: recipe.FilterConfig{
+		CreatedBefore: "1h",
+		UpdatedBefore: "1h",
+		HasBlockers:  ptrBool(true),
+		IDPrefix:     "API-2",
+	}}
+	got := applyRecipeFilters(issues, r)
+	if len(got) != 1 || got[0].ID != "API-2" {
+		t.Fatalf("expected only API-2 to match blockers/date/prefix filters, got %#v", got)
+	}
+
+	r.Filters.HasBlockers = ptrBool(false)
+	got = applyRecipeFilters(issues, r)
+	if len(got) != 0 {
+		t.Fatalf("expected blockers=false to exclude API-2, got %#v", got)
+	}
+}
+
 func TestApplyRecipeSort_DefaultsAndFields(t *testing.T) {
 	now := time.Now()
 	issues := []model.Issue{
@@ -141,6 +217,13 @@ func TestApplyRecipeSort_DefaultsAndFields(t *testing.T) {
 	if sorted[0].ID != "A" { // both open; stable sort keeps original order
 		t.Fatalf("status sort expected A first, got %s", sorted[0].ID)
 	}
+
+	// Unknown field should preserve order
+	r.Sort = recipe.SortConfig{Field: "unknown"}
+	sorted = applyRecipeSort(append([]model.Issue{}, issues...), r)
+	if sorted[0].ID != "A" || sorted[1].ID != "B" {
+		t.Fatalf("unknown sort field should keep original order, got %v", []string{sorted[0].ID, sorted[1].ID})
+	}
 }
 
 func TestFormatCycle(t *testing.T) {
@@ -155,3 +238,21 @@ func TestFormatCycle(t *testing.T) {
 }
 
 func ptrBool(b bool) *bool { return &b }
+
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("could not find go.mod above %s", dir)
+		}
+		dir = parent
+	}
+}
