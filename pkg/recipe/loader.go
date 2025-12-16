@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
@@ -165,34 +166,47 @@ func (l *Loader) Get(name string) *Recipe {
 	return nil
 }
 
-// List returns all available recipes
+// List returns all available recipes sorted by name
 func (l *Loader) List() []Recipe {
-	result := make([]Recipe, 0, len(l.recipes))
-	for _, recipe := range l.recipes {
-		result = append(result, recipe)
+	var names []string
+	for name := range l.recipes {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	result := make([]Recipe, 0, len(names))
+	for _, name := range names {
+		result = append(result, l.recipes[name])
 	}
 	return result
 }
 
-// ListSummaries returns lightweight recipe summaries for discovery
+// ListSummaries returns lightweight recipe summaries for discovery, sorted by name
 func (l *Loader) ListSummaries() []RecipeSummary {
-	result := make([]RecipeSummary, 0, len(l.recipes))
-	for name, recipe := range l.recipes {
+	var names []string
+	for name := range l.recipes {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	result := make([]RecipeSummary, 0, len(names))
+	for _, name := range names {
 		result = append(result, RecipeSummary{
 			Name:        name,
-			Description: recipe.Description,
+			Description: l.recipes[name].Description,
 			Source:      l.sources[name],
 		})
 	}
 	return result
 }
 
-// Names returns all recipe names
+// Names returns all recipe names sorted alphabetically
 func (l *Loader) Names() []string {
 	names := make([]string, 0, len(l.recipes))
 	for name := range l.recipes {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
 }
 
