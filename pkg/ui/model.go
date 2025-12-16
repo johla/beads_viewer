@@ -1144,11 +1144,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewportContent()
 	}
 
-	// Update list for filtering input, but NOT for WindowSizeMsg
+	// Update list for navigation, but NOT for WindowSizeMsg
 	// (we handle sizing ourselves to account for header/footer)
-	if _, isWindowSize := msg.(tea.WindowSizeMsg); !isWindowSize {
-		m.list, cmd = m.list.Update(msg)
-		cmds = append(cmds, cmd)
+	// Only forward keyboard messages to list when list has focus (bv-hmkz fix)
+	// This prevents j/k keys in detail view from changing list selection
+	if m.focused == focusList {
+		if _, isWindowSize := msg.(tea.WindowSizeMsg); !isWindowSize {
+			m.list, cmd = m.list.Update(msg)
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	// Update viewport if list selection changed in split view
