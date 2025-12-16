@@ -137,11 +137,13 @@ func (d IssueDelegate) Render(w io.Writer, m list.Model, index int, listItem lis
 		leftFixedWidth += 2
 	}
 
-	// Triage indicator width (bv-151)
+	// Triage indicator width (bv-151) - use lipgloss.Width for accurate emoji measurement
 	if i.IsQuickWin {
-		leftFixedWidth += 3 // ⭐ + space
+		leftFixedWidth += lipgloss.Width("⭐") + 1 // emoji + space
+	} else if i.IsBlocker && i.UnblocksCount > 0 {
+		leftFixedWidth += lipgloss.Width(fmt.Sprintf("🔓%d", i.UnblocksCount)) + 1 // emoji+count + space
 	} else if i.UnblocksCount > 0 {
-		leftFixedWidth += 4 + len(fmt.Sprintf("%d", i.UnblocksCount)) // 🔓N or ↪N + space
+		leftFixedWidth += lipgloss.Width(fmt.Sprintf("↪%d", i.UnblocksCount)) + 1 // arrow+count + space
 	}
 
 	// Status badge (polished)

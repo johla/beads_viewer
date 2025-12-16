@@ -155,7 +155,8 @@ func LoadIssuesFromFile(path string) ([]model.Issue, error) {
 
 		var issue model.Issue
 		if err := json.Unmarshal(line, &issue); err != nil {
-			// Skip malformed lines but continue loading the rest
+			// Skip malformed lines but warn the user
+			fmt.Fprintf(os.Stderr, "Warning: skipping malformed JSON on line %d: %v\n", lineNum, err)
 			continue
 		}
 

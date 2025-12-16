@@ -238,7 +238,8 @@ func extractNewPath(path string) string {
 	if strings.Contains(path, "{") {
 		// Complex case: "pkg/{old => new}/file.go"
 		path = renamePattern.ReplaceAllString(path, "$1")
-		return path
+		// Fix potential double slashes if a segment was removed (e.g. "{old => }")
+		return strings.ReplaceAll(path, "//", "/")
 	}
 
 	// Simple case: "old => new"

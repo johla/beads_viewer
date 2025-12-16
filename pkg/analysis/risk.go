@@ -52,7 +52,7 @@ func DefaultRiskWeights() RiskWeights {
 // ComputeRiskSignals calculates risk metrics for a single issue
 func ComputeRiskSignals(
 	issue *model.Issue,
-	stats GraphStats,
+	stats *GraphStats,
 	issues map[string]model.Issue,
 	now time.Time,
 ) RiskSignals {
@@ -62,7 +62,7 @@ func ComputeRiskSignals(
 // ComputeRiskSignalsWithWeights calculates risk with custom weights
 func ComputeRiskSignalsWithWeights(
 	issue *model.Issue,
-	stats GraphStats,
+	stats *GraphStats,
 	issues map[string]model.Issue,
 	now time.Time,
 	weights RiskWeights,
@@ -99,7 +99,7 @@ func ComputeRiskSignalsWithWeights(
 }
 
 // computeFanVariance measures variance in blocker fan-in/out across neighborhood
-func computeFanVariance(issue *model.Issue, stats GraphStats, issues map[string]model.Issue) float64 {
+func computeFanVariance(issue *model.Issue, stats *GraphStats, issues map[string]model.Issue) float64 {
 	if len(issue.Dependencies) == 0 {
 		return 0
 	}
@@ -357,7 +357,7 @@ func computeStdDev(values []float64, mean float64) float64 {
 // ComputeAllRiskSignals calculates risk for all issues in the map
 func ComputeAllRiskSignals(
 	issues map[string]model.Issue,
-	stats GraphStats,
+	stats *GraphStats,
 	now time.Time,
 ) map[string]RiskSignals {
 	result := make(map[string]RiskSignals, len(issues))

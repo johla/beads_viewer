@@ -23,7 +23,7 @@ diff --git a/.beads/beads.jsonl b/.beads/beads.jsonl
 +{"id":"bv-001","title":"First bead","status":"in_progress"}
 `)
 
-	e := NewExtractor("/tmp/test")
+	e := NewExtractor("/tmp/test", "")
 	events, err := e.parseGitLogOutput(bytes.NewReader(data), "")
 	if err != nil {
 		t.Fatalf("parseGitLogOutput failed: %v", err)
@@ -298,7 +298,7 @@ func TestInsertBefore_NoMarker(t *testing.T) {
 }
 
 func TestBuildGitLogArgs(t *testing.T) {
-	e := NewExtractor("/test/repo")
+	e := NewExtractor("/test/repo", "")
 
 	t.Run("basic args", func(t *testing.T) {
 		args := e.buildGitLogArgs(ExtractOptions{})
@@ -361,7 +361,7 @@ func TestBuildGitLogArgs(t *testing.T) {
 
 // TestParseDiff tests the diff parsing logic with mock data
 func TestParseDiff(t *testing.T) {
-	e := NewExtractor("/test/repo")
+	e := NewExtractor("/test/repo", "")
 
 	info := commitInfo{
 		SHA:         "abc123",
@@ -518,7 +518,7 @@ func TestParseDiff(t *testing.T) {
 }
 
 func TestNewExtractor(t *testing.T) {
-	e := NewExtractor("/tmp/test")
+	e := NewExtractor("/tmp/test", "")
 
 	if e.repoPath != "/tmp/test" {
 		t.Errorf("repoPath = %s, want /tmp/test", e.repoPath)

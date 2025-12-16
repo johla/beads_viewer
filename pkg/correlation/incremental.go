@@ -165,7 +165,7 @@ func (ic *IncrementalCorrelator) tryIncrementalUpdate(existing *HistoryReport, b
 	}
 
 	// Extract events from new commits only
-	extractor := NewExtractor(ic.cache.repoPath)
+	extractor := NewExtractor(ic.cache.repoPath, "")
 	newEvents, err := extractEventsFromCommits(extractor, newCommits, opts.BeadID)
 	if err != nil {
 		return nil, fmt.Errorf("extracting new events: %w", err)

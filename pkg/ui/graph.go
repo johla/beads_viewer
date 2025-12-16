@@ -51,11 +51,38 @@ func NewGraphModel(issues []model.Issue, insights *analysis.Insights, theme Them
 	return g
 }
 
-// SetIssues updates the graph data
+// SetIssues updates the graph data preserving the selected issue if possible
 func (g *GraphModel) SetIssues(issues []model.Issue, insights *analysis.Insights) {
+	// Capture current selection
+	var selectedID string
+	if len(g.sortedIDs) > 0 && g.selectedIdx >= 0 && g.selectedIdx < len(g.sortedIDs) {
+		selectedID = g.sortedIDs[g.selectedIdx]
+	}
+
 	g.issues = issues
 	g.insights = insights
 	g.rebuildGraph()
+
+	// Restore selection
+	if selectedID != "" {
+		// Try to find the previously selected ID in the new list
+		found := false
+		for i, id := range g.sortedIDs {
+			if id == selectedID {
+				g.selectedIdx = i
+				found = true
+				break
+			}
+		}
+		// If not found (e.g. filter changed or issue deleted), selectedIdx
+		// was reset to 0 or clamped in rebuildGraph, which is acceptable behavior.
+		if !found {
+			// Ensure we don't end up out of bounds if sortedIDs shrank
+			if g.selectedIdx >= len(g.sortedIDs) {
+				g.selectedIdx = 0
+			}
+		}
+	}
 }
 
 func (g *GraphModel) rebuildGraph() {

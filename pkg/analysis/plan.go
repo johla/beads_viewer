@@ -175,7 +175,7 @@ func (a *Analyzer) findConnectedComponents() map[string][]string {
 	// Union issues connected by dependencies (ignoring direction)
 	for _, issue := range a.issueMap {
 		for _, dep := range issue.Dependencies {
-			if dep.Type == model.DepBlocks {
+			if dep.Type.IsBlocking() {
 				if _, exists := a.issueMap[dep.DependsOnID]; exists {
 					union(issue.ID, dep.DependsOnID)
 				}

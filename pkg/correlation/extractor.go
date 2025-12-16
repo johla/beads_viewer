@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -27,9 +28,12 @@ type Extractor struct {
 	beadsFiles []string // Files to track (e.g., .beads/beads.jsonl, .beads/issues.jsonl)
 }
 
-// NewExtractor creates a new extractor for the given repository
-func NewExtractor(repoPath string) *Extractor {
-	return &Extractor{
+// NewExtractor creates a new extractor for the given repository.
+// beadsFilePath is optional; when empty the extractor will track the standard
+// Beads files inside .beads/. A variadic parameter is used to preserve
+// backward compatibility with existing call sites that pass only repoPath.
+func NewExtractor(repoPath string, beadsFilePath ...string) *Extractor {
+	e := &Extractor{
 		repoPath: repoPath,
 		beadsFiles: []string{
 			".beads/beads.jsonl",
@@ -37,6 +41,24 @@ func NewExtractor(repoPath string) *Extractor {
 			".beads/issues.jsonl",
 		},
 	}
+
+	// If a specific file is provided, prioritize it
+	var beadPath string
+	if len(beadsFilePath) > 0 {
+		beadPath = beadsFilePath[0]
+	}
+	if beadPath != "" {
+		// Ensure relative path if possible, though absolute usually works with git if inside repo
+		// For simplicity, we prepend it to the list so it's picked up by buildGitLogArgs as primary
+		rel, err := filepath.Rel(repoPath, beadPath)
+		if err == nil {
+			e.beadsFiles = append([]string{rel}, e.beadsFiles...)
+		} else {
+			e.beadsFiles = append([]string{beadPath}, e.beadsFiles...)
+		}
+	}
+
+	return e
 }
 
 // commitInfo holds parsed commit metadata

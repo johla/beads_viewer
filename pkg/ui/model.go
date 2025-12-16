@@ -102,7 +102,7 @@ type HistoryLoadedMsg struct {
 }
 
 // LoadHistoryCmd returns a command that loads history data in the background
-func LoadHistoryCmd(issues []model.Issue) tea.Cmd {
+func LoadHistoryCmd(issues []model.Issue, beadsPath string) tea.Cmd {
 	return func() tea.Msg {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -555,7 +555,7 @@ func (m Model) Init() tea.Cmd {
 	}
 	// Start loading history in background
 	if len(m.issues) > 0 {
-		cmds = append(cmds, LoadHistoryCmd(m.issues))
+		cmds = append(cmds, LoadHistoryCmd(m.issues, m.beadsPath))
 	}
 	return tea.Batch(cmds...)
 }
@@ -583,7 +583,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			bodyHeight = 5
 		}
 		m.insightsPanel.SetSize(m.width, bodyHeight)
-		m.graphView = NewGraphModel(m.issues, &ins, m.theme)
+		m.graphView.SetIssues(m.issues, &ins)
+
+		// Generate priority recommendations now that Phase 2 is ready
 
 		// Generate priority recommendations now that Phase 2 is ready
 		recommendations := m.analyzer.GenerateRecommendations()
@@ -790,7 +792,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			bodyHeight = 5
 		}
 		m.insightsPanel.SetSize(m.width, bodyHeight)
-		m.graphView = NewGraphModel(m.issues, &ins, m.theme)
+		m.graphView.SetIssues(m.issues, &ins)
+
+		// Generate priority recommendations now that Phase 2 is ready
 		m.board = NewBoardModel(m.issues, m.theme)
 
 		// Re-apply recipe filter if active

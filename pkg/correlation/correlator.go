@@ -17,11 +17,14 @@ type Correlator struct {
 	coCommitter *CoCommitExtractor
 }
 
-// NewCorrelator creates a new correlator for the given repository
-func NewCorrelator(repoPath string) *Correlator {
+// NewCorrelator creates a new correlator for the given repository.
+// beadsFilePath is optional and forwarded to the extractor so history follows
+// the correct beads file; variadic form preserves compatibility with older
+// single-argument callers.
+func NewCorrelator(repoPath string, beadsFilePath ...string) *Correlator {
 	return &Correlator{
 		repoPath:    repoPath,
-		extractor:   NewExtractor(repoPath),
+		extractor:   NewExtractor(repoPath, beadsFilePath...),
 		coCommitter: NewCoCommitExtractor(repoPath),
 	}
 }

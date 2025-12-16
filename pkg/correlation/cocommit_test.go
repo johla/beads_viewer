@@ -441,3 +441,40 @@ func TestCalculateConfidence_Combined(t *testing.T) {
 		t.Errorf("Combined confidence = %v, expected ~0.89", confidence)
 	}
 }
+
+
+
+func TestExtractNewPath_DoubleSlashBug(t *testing.T) {
+	// Git output for renaming "pkg/old/file.go" to "pkg/file.go"
+	// is "pkg/{old => }/file.go"
+	input := "pkg/{old => }/file.go"
+	
+	// We expect "pkg/file.go"
+	expected := "pkg/file.go"
+	
+	got := extractNewPath(input)
+	
+	if got != expected {
+		t.Errorf("extractNewPath(%q) = %q; want %q", input, got, expected)
+	}
+}
+
+func TestExtractNewPath_ComplexCases(t *testing.T) {
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"{old => new}", "new"},
+		{"src/{old => new}/main.go", "src/new/main.go"},
+		{"src/{ => new}/main.go", "src/new/main.go"}, // Addition
+		{"src/{old => }/main.go", "src/main.go"},     // Deletion - vulnerable case
+		{"old => new", "new"},
+	}
+
+	for _, tc := range cases {
+		got := extractNewPath(tc.input)
+		if got != tc.expected {
+			t.Errorf("extractNewPath(%q) = %q; want %q", tc.input, got, tc.expected)
+		}
+	}
+}

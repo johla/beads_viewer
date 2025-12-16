@@ -185,7 +185,7 @@ func (d DependencyType) IsValid() bool {
 
 // IsBlocking returns true if this dependency type represents a blocking relationship
 func (d DependencyType) IsBlocking() bool {
-	return d == DepBlocks
+	return d == "" || d == DepBlocks
 }
 
 // Comment represents a comment on an issue

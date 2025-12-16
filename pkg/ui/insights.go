@@ -173,6 +173,33 @@ func (m *InsightsModel) isPanelSkipped(panel MetricPanel) (bool, string) {
 	if m.insights.Stats == nil {
 		return false, ""
 	}
+
+	// Check runtime status first (covers timeouts and dynamic skips)
+	status := m.insights.Stats.Status()
+	switch panel {
+	case PanelBottlenecks:
+		if status.Betweenness.State == "skipped" || status.Betweenness.State == "timeout" {
+			return true, status.Betweenness.Reason
+		}
+	case PanelHubs, PanelAuthorities:
+		if status.HITS.State == "skipped" || status.HITS.State == "timeout" {
+			return true, status.HITS.Reason
+		}
+	case PanelCycles:
+		if status.Cycles.State == "skipped" || status.Cycles.State == "timeout" {
+			return true, status.Cycles.Reason
+		}
+	case PanelKeystones, PanelSlack: // Critical Path / Slack
+		if status.Critical.State == "skipped" || status.Critical.State == "timeout" {
+			return true, status.Critical.Reason
+		}
+	case PanelInfluencers: // Eigenvector
+		if status.Eigenvector.State == "skipped" || status.Eigenvector.State == "timeout" {
+			return true, status.Eigenvector.Reason
+		}
+	}
+
+	// Fallback to config check (should be covered by status, but safe to keep)
 	config := m.insights.Stats.Config
 
 	switch panel {

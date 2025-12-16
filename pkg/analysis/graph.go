@@ -440,7 +440,7 @@ func NewAnalyzer(issues []model.Issue) *Analyzer {
 			}
 
 			// Only model blocking relationships in the analysis graph
-			if !isBlockingDep(dep.Type) {
+			if !dep.Type.IsBlocking() {
 				continue
 			}
 
@@ -1439,15 +1439,6 @@ func minInt(a, b int) int {
 	return b
 }
 
-// isBlockingDep returns true if the dependency type represents a blocking relationship.
-// Empty type defaults to blocks for legacy compatibility.
-func isBlockingDep(depType model.DependencyType) bool {
-	if depType == "" {
-		return true // Legacy deps default to blocking
-	}
-	return depType == model.DepBlocks
-}
-
 // GetActionableIssues returns issues that can be worked on immediately.
 // An issue is actionable if:
 // 1. It is not closed
@@ -1463,7 +1454,7 @@ func (a *Analyzer) GetActionableIssues() []model.Issue {
 
 		isBlocked := false
 		for _, dep := range issue.Dependencies {
-			if !isBlockingDep(dep.Type) {
+			if !dep.Type.IsBlocking() {
 				continue
 			}
 
@@ -1503,7 +1494,7 @@ func (a *Analyzer) GetBlockers(issueID string) []string {
 
 	var blockers []string
 	for _, dep := range issue.Dependencies {
-		if isBlockingDep(dep.Type) {
+		if dep.Type.IsBlocking() {
 			if _, exists := a.issueMap[dep.DependsOnID]; exists {
 				blockers = append(blockers, dep.DependsOnID)
 			}
@@ -1521,7 +1512,7 @@ func (a *Analyzer) GetOpenBlockers(issueID string) []string {
 
 	var openBlockers []string
 	for _, dep := range issue.Dependencies {
-		if isBlockingDep(dep.Type) {
+		if dep.Type.IsBlocking() {
 			if blocker, exists := a.issueMap[dep.DependsOnID]; exists {
 				if blocker.Status != model.StatusClosed {
 					openBlockers = append(openBlockers, dep.DependsOnID)

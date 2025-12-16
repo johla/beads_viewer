@@ -462,3 +462,44 @@ func TestGetExecutionPlanBlockerClosed(t *testing.T) {
 		t.Errorf("Expected 0 blocked, got %d", plan.TotalBlocked)
 	}
 }
+
+func TestGetExecutionPlanLegacyDependencyGrouping(t *testing.T) {
+	// A depends on B with empty dependency type (legacy "blocks")
+	// Both A and B are open. B is actionable, A is blocked.
+	// B should be actionable.
+	// Since A depends on B, they form a connected component.
+	// Therefore, B should appear in a track that represents this component.
+	// We verify that the tracks logic respects this legacy dependency grouping.
+	
+	// Scenario:
+	// X -> A (legacy). X -> B (legacy).
+	// X is the common ancestor/dependent.
+	// X is Closed.
+	// A is Open. B is Open.
+	// A depends on X (closed) -> A is actionable.
+	// B depends on X (closed) -> B is actionable.
+	// Connection: A -> X <- B (implicitly connected via X).
+	// If connection logic works, {A, B, X} is one component.
+	// We get 1 track with {A, B}.
+	// If connection logic FAILS (ignoring legacy), we get {A}, {B}, {X}.
+	// We get 2 tracks: Track 1 {A}, Track 2 {B}.
+	
+	issues := []model.Issue{
+		{ID: "X", Title: "Common Root", Status: model.StatusClosed, Priority: 1},
+		{ID: "A", Title: "Task A", Status: model.StatusOpen, Priority: 1, Dependencies: []*model.Dependency{
+			{DependsOnID: "X", Type: ""}, // Legacy dependency (should connect A to X)
+		}},
+		{ID: "B", Title: "Task B", Status: model.StatusOpen, Priority: 1, Dependencies: []*model.Dependency{
+			{DependsOnID: "X", Type: ""}, // Legacy dependency (should connect B to X)
+		}},
+	}
+
+	an := analysis.NewAnalyzer(issues)
+	plan := an.GetExecutionPlan()
+
+	// If legacy deps are ignored, A and B will be in separate components -> 2 tracks.
+	// If legacy deps are respected, A and B are connected via X -> 1 track.
+	if len(plan.Tracks) != 1 {
+		t.Errorf("Expected 1 track (grouped via legacy dependency), got %d tracks", len(plan.Tracks))
+	}
+}
