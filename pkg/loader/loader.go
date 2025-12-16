@@ -13,6 +13,30 @@ import (
 	"github.com/Dicklesworthstone/beads_viewer/pkg/model"
 )
 
+// BeadsDirEnvVar is the name of the environment variable for custom beads directory
+const BeadsDirEnvVar = "BEADS_DIR"
+
+// GetBeadsDir returns the beads directory path, respecting BEADS_DIR env var.
+// If BEADS_DIR is set, it is used directly.
+// Otherwise, falls back to .beads in the given repoPath (or cwd if empty).
+func GetBeadsDir(repoPath string) (string, error) {
+	// Check BEADS_DIR environment variable first
+	if envDir := os.Getenv(BeadsDirEnvVar); envDir != "" {
+		return envDir, nil
+	}
+
+	// Fall back to .beads in repo path
+	if repoPath == "" {
+		var err error
+		repoPath, err = os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("failed to get current working directory: %w", err)
+		}
+	}
+
+	return filepath.Join(repoPath, ".beads"), nil
+}
+
 // FindJSONLPath locates the beads JSONL file in the given directory.
 // Prefers issues.jsonl (canonical per beads upstream) over beads.jsonl (backward compat).
 // Skips backup files and merge artifacts.
@@ -100,18 +124,15 @@ func FindJSONLPathWithWarnings(beadsDir string, warnFunc func(msg string)) (stri
 	return filepath.Join(beadsDir, candidates[0]), nil
 }
 
-// LoadIssues reads issues from the .beads directory in the given repository path.
+// LoadIssues reads issues from the beads directory.
+// Respects BEADS_DIR environment variable, otherwise uses .beads in repoPath.
 // Automatically finds the correct JSONL file (issues.jsonl preferred, beads.jsonl fallback).
 func LoadIssues(repoPath string) ([]model.Issue, error) {
-	if repoPath == "" {
-		var err error
-		repoPath, err = os.Getwd()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get current working directory: %w", err)
-		}
+	beadsDir, err := GetBeadsDir(repoPath)
+	if err != nil {
+		return nil, err
 	}
 
-	beadsDir := filepath.Join(repoPath, ".beads")
 	jsonlPath, err := FindJSONLPath(beadsDir)
 	if err != nil {
 		return nil, err

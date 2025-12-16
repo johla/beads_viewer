@@ -723,3 +723,115 @@ func TestLoadIssuesFromFile_MissingID(t *testing.T) {
 		t.Errorf("Expected 0 issues (skipping empty ID), got %d", len(issues))
 	}
 }
+
+// =============================================================================
+// GetBeadsDir Tests (bv-zaxb)
+// =============================================================================
+
+func TestGetBeadsDir_RespectsEnvVar(t *testing.T) {
+	// Set up custom directory
+	customDir := t.TempDir()
+	
+	// Set environment variable
+	oldVal := os.Getenv(loader.BeadsDirEnvVar)
+	os.Setenv(loader.BeadsDirEnvVar, customDir)
+	defer os.Setenv(loader.BeadsDirEnvVar, oldVal)
+	
+	result, err := loader.GetBeadsDir("/some/random/path")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if result != customDir {
+		t.Errorf("Expected BEADS_DIR to be used: got %s, want %s", result, customDir)
+	}
+}
+
+func TestGetBeadsDir_EnvVarOverridesRepoPath(t *testing.T) {
+	customDir := t.TempDir()
+	repoPath := t.TempDir()
+	
+	oldVal := os.Getenv(loader.BeadsDirEnvVar)
+	os.Setenv(loader.BeadsDirEnvVar, customDir)
+	defer os.Setenv(loader.BeadsDirEnvVar, oldVal)
+	
+	result, err := loader.GetBeadsDir(repoPath)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	
+	// BEADS_DIR should win over repoPath
+	if result != customDir {
+		t.Errorf("BEADS_DIR should override repoPath: got %s, want %s", result, customDir)
+	}
+}
+
+func TestGetBeadsDir_FallsBackToBeadsDir(t *testing.T) {
+	// Unset environment variable
+	oldVal := os.Getenv(loader.BeadsDirEnvVar)
+	os.Unsetenv(loader.BeadsDirEnvVar)
+	defer func() {
+		if oldVal != "" {
+			os.Setenv(loader.BeadsDirEnvVar, oldVal)
+		}
+	}()
+	
+	repoPath := "/some/repo/path"
+	expected := filepath.Join(repoPath, ".beads")
+	
+	result, err := loader.GetBeadsDir(repoPath)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if result != expected {
+		t.Errorf("Without env var, should fallback to .beads: got %s, want %s", result, expected)
+	}
+}
+
+func TestGetBeadsDir_EmptyRepoPath_UsesCwd(t *testing.T) {
+	// Unset environment variable
+	oldVal := os.Getenv(loader.BeadsDirEnvVar)
+	os.Unsetenv(loader.BeadsDirEnvVar)
+	defer func() {
+		if oldVal != "" {
+			os.Setenv(loader.BeadsDirEnvVar, oldVal)
+		}
+	}()
+	
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get cwd: %v", err)
+	}
+	expected := filepath.Join(cwd, ".beads")
+	
+	result, err := loader.GetBeadsDir("")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if result != expected {
+		t.Errorf("Empty repoPath should use cwd: got %s, want %s", result, expected)
+	}
+}
+
+func TestGetBeadsDir_EnvVarEmpty_FallsBack(t *testing.T) {
+	// Set to empty string (should be treated as unset)
+	oldVal := os.Getenv(loader.BeadsDirEnvVar)
+	os.Setenv(loader.BeadsDirEnvVar, "")
+	defer func() {
+		if oldVal != "" {
+			os.Setenv(loader.BeadsDirEnvVar, oldVal)
+		} else {
+			os.Unsetenv(loader.BeadsDirEnvVar)
+		}
+	}()
+	
+	repoPath := "/some/repo"
+	expected := filepath.Join(repoPath, ".beads")
+	
+	result, err := loader.GetBeadsDir(repoPath)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if result != expected {
+		t.Errorf("Empty BEADS_DIR should fallback: got %s, want %s", result, expected)
+	}
+}

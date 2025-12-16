@@ -1459,6 +1459,26 @@ bv
 
 `bv` automatically detects your terminal capabilities to render the best possible UI. It looks for `.beads/beads.jsonl` in your current directory.
 
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `BEADS_DIR` | Custom beads directory path. When set, overrides the default `.beads` directory lookup. | `.beads` in cwd |
+
+**Use cases for `BEADS_DIR`:**
+- **Monorepos**: Single beads directory shared across multiple packages
+- **Non-standard layouts**: Projects where `.beads` isn't in the working directory
+- **Testing**: Point to test fixtures without changing directory
+- **Cross-directory access**: View beads from anywhere on the filesystem
+
+```bash
+# Example: Point to a different beads directory
+BEADS_DIR=/path/to/shared/beads bv
+
+# Example: Use in monorepo
+export BEADS_DIR=$(git rev-parse --show-toplevel)/.beads
+```
+
 ### Visual Theme
 The UI uses a visually distinct, high-contrast theme inspired by Dracula Principles to ensure readability.
 *   **Primary:** `#BD93F9` (Purple)
