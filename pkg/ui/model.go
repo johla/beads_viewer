@@ -56,6 +56,7 @@ const (
 	focusHistory
 	focusAttention
 	focusLabelPicker
+	focusSprint // Sprint dashboard view (bv-161)
 )
 
 // LabelGraphAnalysisResult holds label-specific graph analysis results (bv-109)
@@ -155,11 +156,12 @@ type Model struct {
 	list           list.Model
 	viewport       viewport.Model
 	renderer       *glamour.TermRenderer
-	board          BoardModel
-	labelDashboard LabelDashboardModel
-	graphView      GraphModel
-	insightsPanel  InsightsModel
-	theme          Theme
+	board              BoardModel
+	labelDashboard     LabelDashboardModel
+	velocityComparison VelocityComparisonModel // bv-125
+	graphView          GraphModel
+	insightsPanel      InsightsModel
+	theme              Theme
 
 	// Update State
 	updateAvailable bool
@@ -189,8 +191,9 @@ type Model struct {
 	labelDrilldownCache       map[string][]model.Issue
 	showLabelGraphAnalysis    bool
 	labelGraphAnalysisResult  *LabelGraphAnalysisResult
-	showAttentionView         bool
-	labelHealthCached     bool
+	showAttentionView      bool
+	showVelocityComparison bool // bv-125
+	labelHealthCached      bool
 	labelHealthCache      analysis.LabelAnalysisResult
 	attentionCached       bool
 	attentionCache        analysis.LabelAttentionResult
@@ -269,6 +272,12 @@ type Model struct {
 	showAlertsPanel bool
 	alertsCursor    int
 	dismissedAlerts map[string]bool
+
+	// Sprint view (bv-161)
+	sprints        []model.Sprint
+	selectedSprint *model.Sprint
+	isSprintView   bool
+	sprintViewText string
 }
 
 // labelCount is a simple label->count pair for display
@@ -485,7 +494,8 @@ func NewModel(issues []model.Issue, activeRecipe *recipe.Recipe, beadsPath strin
 	// Initialize sub-components
 	board := NewBoardModel(issues, theme)
 	labelDashboard := NewLabelDashboardModel(theme)
-	ins := graphStats.GenerateInsights(len(issues)) // allow UI to show as many as fit
+	velocityComparison := NewVelocityComparisonModel(theme) // bv-125
+	ins := graphStats.GenerateInsights(len(issues))         // allow UI to show as many as fit
 	insightsPanel := NewInsightsModel(ins, issueMap, theme)
 	graphView := NewGraphModel(issues, &ins, theme)
 
@@ -579,6 +589,15 @@ func NewModel(issues []model.Issue, activeRecipe *recipe.Recipe, beadsPath strin
 	// Precompute drift/health alerts (bv-168)
 	alerts, alertsCritical, alertsWarning, alertsInfo := computeAlerts(issues, graphStats, analyzer)
 
+	// Load sprints from the same directory as beadsPath (bv-161)
+	var sprints []model.Sprint
+	if beadsPath != "" {
+		beadsDir := filepath.Dir(beadsPath)
+		if loaded, err := loader.LoadSprintsFromFile(filepath.Join(beadsDir, loader.SprintsFileName)); err == nil {
+			sprints = loaded
+		}
+	}
+
 	return Model{
 		issues:              issues,
 		issueMap:            issueMap,
@@ -590,6 +609,7 @@ func NewModel(issues []model.Issue, activeRecipe *recipe.Recipe, beadsPath strin
 		renderer:            renderer,
 		board:               board,
 		labelDashboard:      labelDashboard,
+		velocityComparison:  velocityComparison,
 		graphView:           graphView,
 		insightsPanel:       insightsPanel,
 		theme:               theme,
@@ -621,6 +641,8 @@ func NewModel(issues []model.Issue, activeRecipe *recipe.Recipe, beadsPath strin
 		alertsWarning:   alertsWarning,
 		alertsInfo:      alertsInfo,
 		dismissedAlerts: make(map[string]bool),
+		// Sprint view (bv-161)
+		sprints: sprints,
 	}
 }
 
@@ -1423,6 +1445,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showLabelPicker = true
 				m.focused = focusLabelPicker
 				return m, nil
+
 			}
 
 			// Focus-specific key handling
@@ -2134,6 +2157,8 @@ func (m Model) View() string {
 	} else if m.isHistoryView {
 		m.historyView.SetSize(m.width, m.height-1)
 		body = m.historyView.View()
+	} else if m.isSprintView {
+		body = m.sprintViewText
 	} else if m.isSplitView {
 		body = m.renderSplitView()
 	} else if m.focused == focusLabelDashboard {
@@ -2410,6 +2435,7 @@ func (m *Model) renderHelpOverlay() string {
 		{"g", "Toggle Graph view"},
 		{"H", "Toggle History view"},
 		{"i", "Toggle Insights dashboard"},
+		{"P", "Toggle Sprint dashboard"},
 		{"R", "Open Recipe picker"},
 		{"w", "Repo filter (workspace mode)"},
 		{"?", "Toggle this help"},
