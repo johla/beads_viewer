@@ -198,6 +198,16 @@ func main() {
 		fmt.Println("      Quick jq: jq '.full_stats.core_number | to_entries | sort_by(-.value)[:5]'   # top k-core nodes")
 		fmt.Println("                 jq '.Articulation'                                                  # structural cut points")
 		fmt.Println("                 jq '.Slack[:5]'                                                     # highest slack (parallel-friendly)")
+		fmt.Println("      advanced_insights: Canonical structure for advanced graph features:")
+		fmt.Println("        - topk_set: Best k issues for maximum downstream unlock (status: pending)")
+		fmt.Println("        - coverage_set: Minimal set covering all critical paths (status: pending)")
+		fmt.Println("        - k_paths: K-shortest critical paths through the graph (status: pending)")
+		fmt.Println("        - parallel_cut: Suggestions for maximizing parallel work (status: pending)")
+		fmt.Println("        - parallel_gain: Parallelization metrics for recommendations (status: pending)")
+		fmt.Println("        - cycle_break: Suggestions for breaking cycles with minimal impact (status: available)")
+		fmt.Println("        Per-feature: status (available|pending|skipped|error), items, usage hints")
+		fmt.Println("        Config: caps for deterministic output (topk<=5, paths<=5, path_len<=50, etc.)")
+		fmt.Println("        Quick jq: jq '.advanced_insights.cycle_break'   # cycle break suggestions")
 		fmt.Println("")
 		fmt.Println("  --robot-plan")
 		fmt.Println("      Execution tracks grouped for parallel work. Includes data_hash, analysis_config, status.")
@@ -844,6 +854,7 @@ func main() {
 				"jq '.recommendations[] | select(.confidence > 0.7)' - Filter high confidence",
 				"jq '.recommendations[0].explanation.what_if' - Get top item's impact",
 				"jq '.recommendations | map({id: .issue_id, score: .impact_score})' - Extract IDs and scores",
+				"jq '.recommendations[] | select(.what_if.parallelization_gain > 0)' - Find items that increase parallel work capacity",
 				"--robot-min-confidence 0.6 - Pre-filter by confidence",
 				"--robot-max-results 5 - Limit to top N results",
 				"--robot-by-label bug - Filter by specific label",

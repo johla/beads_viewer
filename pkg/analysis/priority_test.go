@@ -761,3 +761,110 @@ func TestWhatIfExplanationText(t *testing.T) {
 		}
 	}
 }
+
+// TestParallelizationGain verifies the parallelization gain metric (bv-129)
+func TestParallelizationGain(t *testing.T) {
+	// Scenario: A blocks B, C, and D
+	// Completing A unblocks 3 items, so parallelization gain = 3 - 1 = 2
+	issues := []model.Issue{
+		{ID: "A", Title: "Root Blocker", Status: model.StatusOpen, Priority: 0},
+		{
+			ID: "B", Title: "Blocked 1", Status: model.StatusBlocked, Priority: 1,
+			Dependencies: []*model.Dependency{{IssueID: "B", DependsOnID: "A", Type: model.DepBlocks}},
+		},
+		{
+			ID: "C", Title: "Blocked 2", Status: model.StatusBlocked, Priority: 1,
+			Dependencies: []*model.Dependency{{IssueID: "C", DependsOnID: "A", Type: model.DepBlocks}},
+		},
+		{
+			ID: "D", Title: "Blocked 3", Status: model.StatusBlocked, Priority: 1,
+			Dependencies: []*model.Dependency{{IssueID: "D", DependsOnID: "A", Type: model.DepBlocks}},
+		},
+	}
+
+	an := analysis.NewAnalyzer(issues)
+	recs := an.GenerateRecommendations()
+
+	var recA *analysis.PriorityRecommendation
+	for i := range recs {
+		if recs[i].IssueID == "A" {
+			recA = &recs[i]
+			break
+		}
+	}
+
+	if recA == nil || recA.WhatIf == nil {
+		t.Fatal("Expected recommendation with WhatIf for A")
+	}
+
+	// A unblocks 3 items, so parallelization gain should be 3 - 1 = 2
+	if recA.WhatIf.ParallelizationGain == nil {
+		t.Fatal("ParallelizationGain should not be nil")
+	}
+
+	expectedGain := 2 // 3 unblocks - 1 completed = 2 net gain
+	if *recA.WhatIf.ParallelizationGain != expectedGain {
+		t.Errorf("Expected ParallelizationGain=%d, got %d", expectedGain, *recA.WhatIf.ParallelizationGain)
+	}
+}
+
+// TestParallelizationGainNegative verifies negative parallelization gain (bv-129)
+func TestParallelizationGainNegative(t *testing.T) {
+	// Scenario: A has no downstream dependencies
+	// Completing A unblocks 0 items, so parallelization gain = 0 - 1 = -1
+	issues := []model.Issue{
+		{ID: "A", Title: "Standalone", Status: model.StatusOpen, Priority: 0},
+	}
+
+	an := analysis.NewAnalyzer(issues)
+	recs := an.GenerateRecommendations()
+
+	for _, rec := range recs {
+		if rec.IssueID == "A" && rec.WhatIf != nil {
+			if rec.WhatIf.ParallelizationGain == nil {
+				t.Fatal("ParallelizationGain should not be nil")
+			}
+			expectedGain := -1 // 0 unblocks - 1 completed = -1 net loss
+			if *rec.WhatIf.ParallelizationGain != expectedGain {
+				t.Errorf("Expected ParallelizationGain=%d for standalone issue, got %d", expectedGain, *rec.WhatIf.ParallelizationGain)
+			}
+		}
+	}
+}
+
+// TestParallelizationGainZero verifies zero parallelization gain (bv-129)
+func TestParallelizationGainZero(t *testing.T) {
+	// Scenario: A blocks exactly 1 item B
+	// Completing A unblocks 1 item, so parallelization gain = 1 - 1 = 0
+	issues := []model.Issue{
+		{ID: "A", Title: "Single Blocker", Status: model.StatusOpen, Priority: 0},
+		{
+			ID: "B", Title: "Blocked", Status: model.StatusBlocked, Priority: 1,
+			Dependencies: []*model.Dependency{{IssueID: "B", DependsOnID: "A", Type: model.DepBlocks}},
+		},
+	}
+
+	an := analysis.NewAnalyzer(issues)
+	recs := an.GenerateRecommendations()
+
+	var recA *analysis.PriorityRecommendation
+	for i := range recs {
+		if recs[i].IssueID == "A" {
+			recA = &recs[i]
+			break
+		}
+	}
+
+	if recA == nil || recA.WhatIf == nil {
+		t.Fatal("Expected recommendation with WhatIf for A")
+	}
+
+	if recA.WhatIf.ParallelizationGain == nil {
+		t.Fatal("ParallelizationGain should not be nil")
+	}
+
+	expectedGain := 0 // 1 unblock - 1 completed = 0 net change
+	if *recA.WhatIf.ParallelizationGain != expectedGain {
+		t.Errorf("Expected ParallelizationGain=%d, got %d", expectedGain, *recA.WhatIf.ParallelizationGain)
+	}
+}

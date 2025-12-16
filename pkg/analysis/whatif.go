@@ -43,13 +43,14 @@ type ExplanationStatus struct {
 // DefaultFieldDescriptions returns standard field descriptions for agents
 func DefaultFieldDescriptions() map[string]string {
 	return map[string]string{
-		"top_reasons":        "Top 3 factors contributing to priority score, ordered by weight",
-		"what_if.unblocks":   "Number of issues directly waiting on this one",
-		"what_if.cascade":    "Total issues transitively unblocked (including indirect)",
-		"what_if.depth":      "Critical path depth reduction if completed",
-		"what_if.days_saved": "Estimated days saved based on issue estimates",
-		"status.phase2":      "Whether expensive graph metrics (PageRank, betweenness) are included",
-		"status.capped":      "Whether results were truncated to prevent overload",
+		"top_reasons":              "Top 3 factors contributing to priority score, ordered by weight",
+		"what_if.unblocks":         "Number of issues directly waiting on this one",
+		"what_if.cascade":          "Total issues transitively unblocked (including indirect)",
+		"what_if.depth":            "Critical path depth reduction if completed",
+		"what_if.days_saved":       "Estimated days saved based on issue estimates",
+		"what_if.parallel_gain":    "Net change in parallel work capacity (direct_unblocks - 1); positive = more parallel work possible",
+		"status.phase2":            "Whether expensive graph metrics (PageRank, betweenness) are included",
+		"status.capped":            "Whether results were truncated to prevent overload",
 	}
 }
 

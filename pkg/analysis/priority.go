@@ -453,6 +453,9 @@ type WhatIfDelta struct {
 	EstimatedDaysSaved float64 `json:"estimated_days_saved,omitempty"`
 	// UnblockedIssueIDs lists the IDs that would be unblocked (capped at 10)
 	UnblockedIssueIDs []string `json:"unblocked_issue_ids,omitempty"`
+	// ParallelizationGain is the net change in actionable work capacity (bv-129)
+	// Positive = more parallel work possible after completion; nil = not computed (below top-N)
+	ParallelizationGain *int `json:"parallelization_gain,omitempty"`
 	// Explanation summarizes the what-if impact
 	Explanation string `json:"explanation"`
 }
@@ -813,14 +816,19 @@ func (a *Analyzer) computeWhatIfDelta(issueID string) *WhatIfDelta {
 	// Generate explanation
 	explanation := generateWhatIfExplanation(directCount, transitiveCount, blockedReduction, estimatedDaysSaved)
 
+	// Compute parallelization gain (bv-129)
+	// Net change in actionable work capacity: completing 1 issue, gaining N unblocked
+	parallelGain := directCount - 1
+
 	return &WhatIfDelta{
-		DirectUnblocks:     directCount,
-		TransitiveUnblocks: transitiveCount,
-		BlockedReduction:   blockedReduction,
-		DepthReduction:     depthReduction,
-		EstimatedDaysSaved: estimatedDaysSaved,
-		UnblockedIssueIDs:  unblockedIDs,
-		Explanation:        explanation,
+		DirectUnblocks:      directCount,
+		TransitiveUnblocks:  transitiveCount,
+		BlockedReduction:    blockedReduction,
+		DepthReduction:      depthReduction,
+		EstimatedDaysSaved:  estimatedDaysSaved,
+		UnblockedIssueIDs:   unblockedIDs,
+		ParallelizationGain: &parallelGain,
+		Explanation:         explanation,
 	}
 }
 
