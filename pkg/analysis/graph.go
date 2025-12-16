@@ -537,8 +537,12 @@ func (a *Analyzer) Analyze() GraphStats {
 		hubs:              stats.hubs,
 		authorities:       stats.authorities,
 		criticalPathScore: stats.criticalPathScore,
+		coreNumber:        stats.coreNumber,
+		articulation:      stats.articulation,
+		slack:             stats.slack,
 		cycles:            stats.cycles,
 		phase2Ready:       true,
+		status:            stats.status,
 	}
 }
 
@@ -560,6 +564,9 @@ func (a *Analyzer) AnalyzeWithConfig(config AnalysisConfig) GraphStats {
 		hubs:              stats.hubs,
 		authorities:       stats.authorities,
 		criticalPathScore: stats.criticalPathScore,
+		coreNumber:        stats.coreNumber,
+		articulation:      stats.articulation,
+		slack:             stats.slack,
 		cycles:            stats.cycles,
 		phase2Ready:       true,
 		status:            stats.status,
@@ -891,6 +898,9 @@ func (a *Analyzer) computePhase2(stats *GraphStats, config AnalysisConfig) {
 	localHubs := make(map[string]float64)
 	localAuthorities := make(map[string]float64)
 	localCriticalPath := make(map[string]float64)
+	localCore := make(map[string]int)
+	localArticulation := make(map[string]bool)
+	localSlack := make(map[string]float64)
 	var localCycles [][]string
 
 	// PageRank with timeout (if enabled)
@@ -1027,6 +1037,10 @@ func (a *Analyzer) computePhase2(stats *GraphStats, config AnalysisConfig) {
 		}
 	}
 
+	// Advanced graph signals: k-core, articulation points (undirected), slack
+	localCore, localArticulation = a.computeCoreAndArticulation()
+	localSlack = a.computeSlack()
+
 	// ATOMIC ASSIGNMENT: Lock once and assign all computed values
 	stats.mu.Lock()
 	stats.pageRank = localPageRank
@@ -1035,6 +1049,9 @@ func (a *Analyzer) computePhase2(stats *GraphStats, config AnalysisConfig) {
 	stats.hubs = localHubs
 	stats.authorities = localAuthorities
 	stats.criticalPathScore = localCriticalPath
+	stats.coreNumber = localCore
+	stats.articulation = localArticulation
+	stats.slack = localSlack
 	stats.cycles = localCycles
 	stats.phase2Ready = true
 	stats.mu.Unlock()
@@ -1117,6 +1134,10 @@ func (a *Analyzer) computeSlack() map[string]float64 {
 
 	distFromStart := make(map[string]int, len(order))
 	distToEnd := make(map[string]int, len(order))
+	for _, id := range order {
+		distFromStart[id] = 0
+		distToEnd[id] = 0
+	}
 
 	// Map for quick node lookup
 	forwardDeps := func(id string) []int64 {
@@ -1151,7 +1172,7 @@ func (a *Analyzer) computeSlack() map[string]float64 {
 	}
 
 	longest := 0
-	for id := range distFromStart {
+	for _, id := range order {
 		if d := distFromStart[id] + distToEnd[id]; d > longest {
 			longest = d
 		}
@@ -1216,6 +1237,8 @@ func findArticulationPoints(g *simple.UndirectedGraph) map[int64]bool {
 	parent := make(map[int64]int64)
 	ap := make(map[int64]bool)
 
+	const noParent int64 = -1
+
 	var dfs func(v int64)
 	dfs = func(v int64) {
 		timeIdx++
@@ -1233,10 +1256,10 @@ func findArticulationPoints(g *simple.UndirectedGraph) map[int64]bool {
 				low[v] = minInt(low[v], low[u])
 
 				// Root with >1 child OR low[u] >= disc[v]
-				if parent[v] == 0 && childCount > 1 {
+				if parent[v] == noParent && childCount > 1 {
 					ap[v] = true
 				}
-				if parent[v] != 0 && low[u] >= disc[v] {
+				if parent[v] != noParent && low[u] >= disc[v] {
 					ap[v] = true
 				}
 			} else if u != parent[v] {
@@ -1249,7 +1272,7 @@ func findArticulationPoints(g *simple.UndirectedGraph) map[int64]bool {
 	for nodes.Next() {
 		id := nodes.Node().ID()
 		if disc[id] == 0 {
-			parent[id] = 0
+			parent[id] = noParent
 			dfs(id)
 		}
 	}

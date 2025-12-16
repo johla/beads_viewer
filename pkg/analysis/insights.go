@@ -17,6 +17,9 @@ type Insights struct {
 	Influencers    []InsightItem // Top eigenvector centrality
 	Hubs           []InsightItem // Strong dependency aggregators
 	Authorities    []InsightItem // Strong prerequisite providers
+	Cores          []InsightItem // Highest k-core numbers (structural cohesion)
+	Articulation   []string      // Cut vertices whose removal disconnects graph
+	Slack          []InsightItem // Highest slack (parallelizable / flexible nodes)
 	Orphans        []string      // No dependencies (and not blocked?) - Leaf nodes
 	Cycles         [][]string
 	ClusterDensity float64
@@ -34,6 +37,9 @@ func (s *GraphStats) GenerateInsights(limit int) Insights {
 	eigenvector := s.Eigenvector()
 	hubs := s.Hubs()
 	authorities := s.Authorities()
+	coreNum := s.CoreNumber()
+	artPts := s.ArticulationPoints()
+	slack := s.Slack()
 	cycles := s.Cycles()
 
 	if limit <= 0 {
@@ -46,6 +52,9 @@ func (s *GraphStats) GenerateInsights(limit int) Insights {
 		Influencers:    getTopItems(eigenvector, limit),
 		Hubs:           getTopItems(hubs, limit),
 		Authorities:    getTopItems(authorities, limit),
+		Cores:          getTopItemsInt(coreNum, limit),
+		Articulation:   limitStrings(artPts, limit),
+		Slack:          getTopItems(slack, limit),
 		Cycles:         cycles,
 		ClusterDensity: s.Density,
 		Stats:          s,
@@ -74,4 +83,33 @@ func getTopItems(m map[string]float64, limit int) []InsightItem {
 		result = append(result, InsightItem{ID: ss[i].Key, Value: ss[i].Value})
 	}
 	return result
+}
+
+func getTopItemsInt(m map[string]int, limit int) []InsightItem {
+	type kv struct {
+		Key   string
+		Value int
+	}
+	var ss []kv
+	for k, v := range m {
+		ss = append(ss, kv{k, v})
+	}
+	sort.Slice(ss, func(i, j int) bool {
+		if ss[i].Value == ss[j].Value {
+			return ss[i].Key < ss[j].Key
+		}
+		return ss[i].Value > ss[j].Value
+	})
+	result := make([]InsightItem, 0)
+	for i := 0; i < len(ss) && i < limit; i++ {
+		result = append(result, InsightItem{ID: ss[i].Key, Value: float64(ss[i].Value)})
+	}
+	return result
+}
+
+func limitStrings(s []string, limit int) []string {
+	if limit <= 0 || len(s) <= limit {
+		return s
+	}
+	return s[:limit]
 }

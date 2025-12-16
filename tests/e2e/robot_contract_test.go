@@ -148,3 +148,75 @@ func TestRobotPriorityContract(t *testing.T) {
 		t.Fatalf("expected recommendation for P0, got %+v", payload.Recommendations)
 	}
 }
+
+func TestRobotTriageContract(t *testing.T) {
+	bv := buildBvBinary(t)
+	env := t.TempDir()
+	// Simple issues for triage
+	writeBeads(t, env, `{"id":"A","title":"Blocker","status":"open","priority":1,"issue_type":"task"}
+{"id":"B","title":"Blocked","status":"open","priority":2,"issue_type":"task","dependencies":[{"issue_id":"B","depends_on_id":"A","type":"blocks"}]}`)
+
+	var payload struct {
+		GeneratedAt string `json:"generated_at"`
+		DataHash    string `json:"data_hash"`
+		Triage      struct {
+			QuickRef struct {
+				TopPicks []struct {
+					ID    string `json:"id"`
+					Score float64 `json:"score"`
+				} `json:"top_picks"`
+			} `json:"quick_ref"`
+		} `json:"triage"`
+		UsageHints []string `json:"usage_hints"`
+	}
+	runRobotJSON(t, bv, env, "--robot-triage", &payload)
+
+	if payload.DataHash == "" {
+		t.Fatalf("triage missing data_hash")
+	}
+	if payload.GeneratedAt == "" {
+		t.Fatalf("triage missing generated_at")
+	}
+	if len(payload.UsageHints) == 0 {
+		t.Fatalf("triage missing usage_hints")
+	}
+	// Should have quick_ref.top_picks
+	if len(payload.Triage.QuickRef.TopPicks) == 0 {
+		t.Fatalf("triage missing quick_ref.top_picks")
+	}
+}
+
+func TestRobotUsageHintsPresent(t *testing.T) {
+	bv := buildBvBinary(t)
+	env := t.TempDir()
+	writeBeads(t, env, `{"id":"A","title":"Test","status":"open","priority":1,"issue_type":"task"}`)
+
+	tests := []struct {
+		flag string
+		name string
+	}{
+		{"--robot-insights", "insights"},
+		{"--robot-plan", "plan"},
+		{"--robot-priority", "priority"},
+		{"--robot-triage", "triage"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var payload map[string]any
+			runRobotJSON(t, bv, env, tc.flag, &payload)
+
+			hints, ok := payload["usage_hints"].([]any)
+			if !ok || len(hints) == 0 {
+				t.Fatalf("%s missing usage_hints array", tc.flag)
+			}
+			// Verify hints are non-empty strings
+			for i, hint := range hints {
+				s, ok := hint.(string)
+				if !ok || s == "" {
+					t.Fatalf("%s usage_hints[%d] is not a non-empty string: %v", tc.flag, i, hint)
+				}
+			}
+		})
+	}
+}
