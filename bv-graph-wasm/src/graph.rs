@@ -359,6 +359,49 @@ impl DiGraph {
         let br = bridges(self);
         serde_wasm_bindgen::to_value(&br).unwrap_or(JsValue::NULL)
     }
+
+    /// Find strongly connected components using Tarjan's algorithm.
+    /// Returns JSON: { components: number[][], has_cycles: bool, cycle_count: number }
+    #[wasm_bindgen(js_name = tarjanScc)]
+    pub fn tarjan_scc(&self) -> JsValue {
+        use crate::algorithms::cycles::tarjan_scc;
+        let result = tarjan_scc(self);
+        serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
+    }
+
+    /// Check if graph has any cycles.
+    #[wasm_bindgen(js_name = hasCycles)]
+    pub fn has_cycles(&self) -> bool {
+        use crate::algorithms::cycles::has_cycles;
+        has_cycles(self)
+    }
+
+    /// Enumerate all elementary cycles using Johnson's algorithm.
+    /// Returns JSON: { cycles: number[][], truncated: bool, count: number }
+    #[wasm_bindgen(js_name = enumerateCycles)]
+    pub fn enumerate_cycles(&self, max_cycles: usize) -> JsValue {
+        use crate::algorithms::cycles::enumerate_cycles_with_info;
+        let result = enumerate_cycles_with_info(self, max_cycles);
+        serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
+    }
+
+    /// Compute slack for each node in the DAG.
+    /// Slack = critical_path_length - longest_path_through_node.
+    /// Zero slack means the node is on the critical path.
+    /// Returns array of slack values, or zeros for cyclic graphs.
+    #[wasm_bindgen(js_name = slack)]
+    pub fn slack(&self) -> JsValue {
+        use crate::algorithms::slack::slack;
+        let s = slack(self);
+        serde_wasm_bindgen::to_value(&s).unwrap_or(JsValue::NULL)
+    }
+
+    /// Get the total float (maximum slack) in the graph.
+    #[wasm_bindgen(js_name = totalFloat)]
+    pub fn total_float(&self) -> f64 {
+        use crate::algorithms::slack::total_float;
+        total_float(self)
+    }
 }
 
 // Internal methods (not exposed to WASM)
