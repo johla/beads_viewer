@@ -1924,7 +1924,7 @@ func (m Model) handleGraphKeys(msg tea.KeyMsg) Model {
 		m.graphView.PageUp()
 	case "H":
 		m.graphView.ScrollLeft()
-	case "f3":
+	case "L":
 		m.graphView.ScrollRight()
 	case "enter":
 		if selected := m.graphView.SelectedIssue(); selected != nil {
@@ -2660,10 +2660,10 @@ func (m *Model) renderHelpOverlay() string {
 		{"g", "Toggle Graph view"},
 		{"h", "Toggle History view"},
 		{"i", "Toggle Insights dashboard"},
-		{"L", "Label dashboard (L=Labels)"},
-		{"A", "Attention view (A=Attention)"},
 		{"f", "Toggle Flow matrix"},
-		{"R", "Open Recipe picker"},
+		{"F3", "Label dashboard"},
+		{"F4", "Attention view"},
+		{"F5", "Recipe picker"},
 		{"w", "Repo filter (workspace mode)"},
 		{"? / F1", "Toggle this help"},
 		{"F2", "Toggle shortcuts sidebar"},
@@ -2712,7 +2712,7 @@ func (m *Model) renderHelpOverlay() string {
 		{"Enter", "Jump to selected bead"},
 		{"y", "Copy commit SHA"},
 		{"c", "Cycle confidence filter"},
-		{"H/Esc", "Close history view"},
+		{"h/Esc", "Close history view"},
 	}
 	for _, s := range historyKeys {
 		sb.WriteString(keyStyle.Render(s.key) + descStyle.Render(s.desc) + "\n")
@@ -2761,7 +2761,7 @@ func (m *Model) renderHelpOverlay() string {
 		{"!", "Toggle alerts panel"},
 		{"t", "Time-travel (custom)"},
 		{"T", "Time-travel (HEAD~5)"},
-		{"E", "Export to Markdown"},
+		{"x", "Export to Markdown"},
 		{"C", "Copy issue to clipboard"},
 		{"O", "Open in editor"},
 		{"q", "Back / Quit"},

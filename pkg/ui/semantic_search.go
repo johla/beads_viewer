@@ -90,13 +90,18 @@ func (s *SemanticSearch) Filter(term string, targets []string) []list.Rank {
 	scoredItems := make([]scored, 0, len(snap.IDs))
 	for i, id := range snap.IDs {
 		entry, ok := snap.Index.Get(id)
+		var score float64
 		if !ok {
-			continue
+			// Item not in index (e.g. new issue before re-indexing).
+			// Assign lowest possible score to keep it in the list but at the bottom.
+			score = -2.0
+		} else {
+			score = dotFloat32(q, entry.Vector)
 		}
 		scoredItems = append(scoredItems, scored{
 			index: i,
 			id:    id,
-			score: dotFloat32(q, entry.Vector),
+			score: score,
 		})
 	}
 

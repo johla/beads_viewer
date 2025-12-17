@@ -379,10 +379,15 @@ func TestSemanticSearchFilterMissingID(t *testing.T) {
 	targets := []string{"a", "b"}
 	ranks := ss.Filter("query", targets)
 
-	// Should still return valid results, just skip missing IDs
-	// Should have at least 1 result for id-1
-	if len(ranks) == 0 {
-		t.Error("Expected at least one rank for valid ID")
+	// Should return results for both valid and missing IDs
+	// Missing IDs are assigned a low score but included
+	if len(ranks) != 2 {
+		t.Errorf("Expected 2 ranks (valid + missing), got %d", len(ranks))
+	}
+
+	// First result should be id-1 (index 0) as it has a positive score
+	if len(ranks) > 0 && ranks[0].Index != 0 {
+		t.Errorf("Expected first rank index 0 (id-1), got %d", ranks[0].Index)
 	}
 }
 
