@@ -1974,8 +1974,9 @@ func main() {
 	if *robotTriage || *robotNext || *robotTriageByTrack || *robotTriageByLabel {
 		// bv-87: Support track/label-aware grouping for multi-agent coordination
 		opts := analysis.TriageOptions{
-			GroupByTrack: *robotTriageByTrack,
-			GroupByLabel: *robotTriageByLabel,
+			GroupByTrack:  *robotTriageByTrack,
+			GroupByLabel:  *robotTriageByLabel,
+			WaitForPhase2: true, // Triage needs full graph metrics
 		}
 		triage := analysis.ComputeTriageWithOptions(issues, opts)
 
