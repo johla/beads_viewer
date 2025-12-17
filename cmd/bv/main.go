@@ -1439,9 +1439,15 @@ func main() {
 			if title == "" {
 				title = projectName
 			}
+
+			// Compute triage for the graph export
+			triageOpts := analysis.TriageOptions{WaitForPhase2: true}
+			triage := analysis.ComputeTriageWithOptions(exportIssues, triageOpts)
+
 			opts := export.InteractiveGraphOptions{
 				Issues:      exportIssues,
 				Stats:       &stats,
+				Triage:      &triage,
 				Title:       title,
 				DataHash:    dataHash,
 				Path:        *exportGraph,

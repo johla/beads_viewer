@@ -1094,6 +1094,16 @@ func (a *Analyzer) computePhase1(stats *GraphStats) {
 		stats.OutDegree[id] = from.Len() // Issues I depend on
 	}
 
+	// Topological Sort (execution order)
+	// Note: In our graph model, edge u -> v means u depends on v, so we reverse
+	// topo.Sort's output to get dependencies-first ordering.
+	sorted, err := topo.Sort(a.g)
+	if err == nil {
+		for i := len(sorted) - 1; i >= 0; i-- {
+			stats.TopologicalOrder = append(stats.TopologicalOrder, a.nodeToID[sorted[i].ID()])
+		}
+	}
+
 	// Density
 	n := float64(len(a.issueMap))
 	e := float64(a.g.Edges().Len())
