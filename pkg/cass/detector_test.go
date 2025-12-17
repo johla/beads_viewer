@@ -270,6 +270,7 @@ func TestDetector_Invalidate(t *testing.T) {
 
 func TestDetector_ConcurrentAccess(t *testing.T) {
 	var checkCount int32
+	var failureCount int32 // Track failures atomically instead of using t.Errorf in goroutines
 	d := NewDetector()
 	d.lookPath = func(name string) (string, error) {
 		return "/usr/local/bin/cass", nil
@@ -287,11 +288,16 @@ func TestDetector_ConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			status := d.Check()
 			if status != StatusHealthy {
-				t.Errorf("Check() = %v, want StatusHealthy", status)
+				atomic.AddInt32(&failureCount, 1)
 			}
 		}()
 	}
 	wg.Wait()
+
+	// Check for failures after all goroutines complete (safe to use t.Errorf now)
+	if failures := atomic.LoadInt32(&failureCount); failures > 0 {
+		t.Errorf("%d goroutines got non-healthy status, want all StatusHealthy", failures)
+	}
 
 	// Due to caching and locking, we should have very few actual checks
 	// (ideally 1, but could be 2-3 due to race in acquiring lock)

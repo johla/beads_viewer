@@ -156,7 +156,7 @@ func (d *Detector) Invalidate() {
 }
 
 // detect performs the actual detection logic.
-// Must be called with d.mu held.
+// Caller must hold d.mu (write lock) to safely update status with the result.
 func (d *Detector) detect() Status {
 	// Step 1: Check if cass binary exists in PATH
 	_, err := d.lookPath("cass")
