@@ -178,59 +178,41 @@ func (l *AggregateLoader) loadSingleRepo(repo RepoConfig) ([]model.Issue, error)
 }
 
 // namespaceIssues adds the prefix to all issue IDs and dependency references
+// It mutates the issues slice in place to reduce allocations.
 func (l *AggregateLoader) namespaceIssues(issues []model.Issue, prefix string, localIDs map[string]bool) []model.Issue {
-	result := make([]model.Issue, len(issues))
+	for i := range issues {
+		// Mutate issue in place
+		issue := &issues[i]
+		issue.ID = QualifyID(issue.ID, prefix)
 
-	for i, issue := range issues {
-		// Copy the issue and namespace its ID
-		namespacedIssue := issue
-		namespacedIssue.ID = QualifyID(issue.ID, prefix)
-
-		// Namespace dependency references
-		if len(issue.Dependencies) > 0 {
-			namespacedDeps := make([]*model.Dependency, len(issue.Dependencies))
-			for j, dep := range issue.Dependencies {
-				if dep == nil {
-					continue
-				}
-				namespacedDep := *dep
-				namespacedDep.IssueID = QualifyID(dep.IssueID, prefix)
-				
-				// Resolve DependsOnID:
-				// 1. If it matches a local issue ID, it's local -> namespace it.
-				// 2. If it has a known external prefix, it's external -> keep as is.
-				// 3. Otherwise, assume it's local (e.g. missing/future local issue) -> namespace it.
-				if localIDs[dep.DependsOnID] {
-					namespacedDep.DependsOnID = QualifyID(dep.DependsOnID, prefix)
-				} else if l.hasKnownPrefix(dep.DependsOnID) {
-					// External reference, keep as is
-				} else {
-					// Assume local
-					namespacedDep.DependsOnID = QualifyID(dep.DependsOnID, prefix)
-				}
-				namespacedDeps[j] = &namespacedDep
+		// Namespace dependency references in place
+		for _, dep := range issue.Dependencies {
+			if dep == nil {
+				continue
 			}
-			namespacedIssue.Dependencies = namespacedDeps
+			dep.IssueID = QualifyID(dep.IssueID, prefix)
+			
+			// Resolve DependsOnID
+			if localIDs[dep.DependsOnID] {
+				dep.DependsOnID = QualifyID(dep.DependsOnID, prefix)
+			} else if l.hasKnownPrefix(dep.DependsOnID) {
+				// External reference, keep as is
+			} else {
+				// Assume local
+				dep.DependsOnID = QualifyID(dep.DependsOnID, prefix)
+			}
 		}
 
-		// Namespace comment issue references
-		if len(issue.Comments) > 0 {
-			namespacedComments := make([]*model.Comment, len(issue.Comments))
-			for j, comment := range issue.Comments {
-				if comment == nil {
-					continue
-				}
-				namespacedComment := *comment
-				namespacedComment.IssueID = QualifyID(comment.IssueID, prefix)
-				namespacedComments[j] = &namespacedComment
+		// Namespace comment issue references in place
+		for _, comment := range issue.Comments {
+			if comment == nil {
+				continue
 			}
-			namespacedIssue.Comments = namespacedComments
+			comment.IssueID = QualifyID(comment.IssueID, prefix)
 		}
-
-		result[i] = namespacedIssue
 	}
 
-	return result
+	return issues
 }
 
 // hasKnownPrefix checks if an ID already has a known namespace prefix

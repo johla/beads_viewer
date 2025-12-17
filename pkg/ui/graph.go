@@ -86,10 +86,11 @@ func (g *GraphModel) SetIssues(issues []model.Issue, insights *analysis.Insights
 }
 
 func (g *GraphModel) rebuildGraph() {
-	g.issueMap = make(map[string]*model.Issue)
-	g.blockers = make(map[string][]string)
-	g.dependents = make(map[string][]string)
-	g.sortedIDs = nil
+	size := len(g.issues)
+	g.issueMap = make(map[string]*model.Issue, size)
+	g.blockers = make(map[string][]string, size)
+	g.dependents = make(map[string][]string, size)
+	g.sortedIDs = make([]string, 0, size)
 
 	for i := range g.issues {
 		issue := &g.issues[i]

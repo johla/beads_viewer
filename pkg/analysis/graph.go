@@ -86,6 +86,16 @@ type GraphStats struct {
 	slack             map[string]float64
 	cycles            [][]string
 
+	// Ranks (1-based, computed for UI optimization)
+	pageRankRank      map[string]int
+	betweennessRank   map[string]int
+	eigenvectorRank   map[string]int
+	hubsRank          map[string]int
+	authoritiesRank   map[string]int
+	criticalPathRank  map[string]int
+	inDegreeRank      map[string]int
+	outDegreeRank     map[string]int
+
 	// Phase 2 status flags for robot visibility
 	status MetricStatus
 }
@@ -964,20 +974,16 @@ func (a *Analyzer) computePhase1(stats *GraphStats) {
 		stats.OutDegree[id] = from.Len() // Issues I depend on
 	}
 
-	// Topological Sort (fast for DAGs)
-	sorted, err := topo.Sort(a.g)
-	if err == nil {
-		for i := len(sorted) - 1; i >= 0; i-- {
-			stats.TopologicalOrder = append(stats.TopologicalOrder, a.nodeToID[sorted[i].ID()])
-		}
-	}
-
 	// Density
 	n := float64(len(a.issueMap))
 	e := float64(a.g.Edges().Len())
 	if n > 1 {
 		stats.Density = e / (n * (n - 1))
 	}
+
+	// Compute Phase 1 Ranks
+	stats.inDegreeRank = computeIntRanks(stats.InDegree)
+	stats.outDegreeRank = computeIntRanks(stats.OutDegree)
 }
 
 // computePhase2 calculates expensive metrics in background.
@@ -1523,4 +1529,56 @@ func computeEigenvector(g graph.Directed) map[int64]float64 {
 		res[node.ID()] = vec[i]
 	}
 	return res
+}
+
+// computeFloatRanks computes rankings for a float map (descending).
+func computeFloatRanks(m map[string]float64) map[string]int {
+	if m == nil {
+		return nil
+	}
+	ranks := make(map[string]int, len(m))
+	type kv struct {
+		k string
+		v float64
+	}
+	var sorted []kv
+	for k, v := range m {
+		sorted = append(sorted, kv{k, v})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].v == sorted[j].v {
+			return sorted[i].k < sorted[j].k
+		}
+		return sorted[i].v > sorted[j].v // Descending
+	})
+	for i, item := range sorted {
+		ranks[item.k] = i + 1
+	}
+	return ranks
+}
+
+// computeIntRanks computes rankings for an int map (descending).
+func computeIntRanks(m map[string]int) map[string]int {
+	if m == nil {
+		return nil
+	}
+	ranks := make(map[string]int, len(m))
+	type kv struct {
+		k string
+		v int
+	}
+	var sorted []kv
+	for k, v := range m {
+		sorted = append(sorted, kv{k, v})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].v == sorted[j].v {
+			return sorted[i].k < sorted[j].k
+		}
+		return sorted[i].v > sorted[j].v
+	})
+	for i, item := range sorted {
+		ranks[item.k] = i + 1
+	}
+	return ranks
 }
