@@ -130,6 +130,9 @@ func main() {
 	relationsLimit := flag.Int("relations-limit", 10, "Max related files to show")
 	// Blocker chain analysis flag (bv-nlo0)
 	robotBlockerChain := flag.String("robot-blocker-chain", "", "Output full blocker chain analysis for issue ID as JSON")
+	// Impact network graph flag (bv-48kr)
+	robotImpactNetwork := flag.String("robot-impact-network", "", "Output bead impact network as JSON (empty for full, or bead ID for subnetwork)")
+	networkDepth := flag.Int("network-depth", 2, "Depth of subnetwork when querying specific bead (1-3)")
 	// Sprint flags (bv-156)
 	robotSprintList := flag.Bool("robot-sprint-list", false, "Output sprints as JSON")
 	robotSprintShow := flag.String("robot-sprint-show", "", "Output specific sprint details as JSON")
@@ -211,6 +214,7 @@ func main() {
 		*robotImpact != "" ||
 		*robotFileRelations != "" ||
 		*robotBlockerChain != "" ||
+		*robotImpactNetwork != "" ||
 		*robotSprintList ||
 		*robotSprintShow != "" ||
 		*robotForecast != "" ||
@@ -3302,6 +3306,85 @@ func main() {
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(output); err != nil {
 			fmt.Fprintf(os.Stderr, "Error encoding blocker chain: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	// Handle --robot-impact-network flag (bv-48kr)
+	// Use "all" for full network or a bead ID for subnetwork
+	if *robotImpactNetwork != "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting current directory: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Find beads path
+		beadsDir, err := loader.GetBeadsDir("")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting beads directory: %v\n", err)
+			os.Exit(1)
+		}
+		beadsPath, err := loader.FindJSONLPath(beadsDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error finding beads file: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Load issues
+		issues, err := loader.LoadIssues(cwd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading beads: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Convert to BeadInfo slice
+		beadInfos := make([]correlation.BeadInfo, len(issues))
+		for i, issue := range issues {
+			beadInfos[i] = correlation.BeadInfo{
+				ID:     issue.ID,
+				Title:  issue.Title,
+				Status: string(issue.Status),
+			}
+		}
+
+		// Generate history report
+		correlator := correlation.NewCorrelator(cwd, beadsPath)
+		report, err := correlator.GenerateReport(beadInfos, correlation.CorrelatorOptions{
+			Limit: *historyLimit,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating history report: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Build impact network
+		builder := correlation.NewNetworkBuilder(report)
+		network := builder.Build()
+
+		// Determine if specific bead or full network
+		beadID := ""
+		if *robotImpactNetwork != "all" {
+			beadID = *robotImpactNetwork
+		}
+
+		// Cap depth to reasonable range
+		depth := *networkDepth
+		if depth < 1 {
+			depth = 1
+		}
+		if depth > 3 {
+			depth = 3
+		}
+
+		// Generate result
+		result := network.ToResult(beadID, depth)
+
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(result); err != nil {
+			fmt.Fprintf(os.Stderr, "Error encoding impact network: %v\n", err)
 			os.Exit(1)
 		}
 		os.Exit(0)
