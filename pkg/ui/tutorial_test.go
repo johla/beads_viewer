@@ -188,7 +188,6 @@ func TestTutorialJumpMethods(t *testing.T) {
 	}
 
 	// JumpToSection by exact page ID
-	initialPage := m.currentPage
 	m.JumpToSection("intro-welcome")
 	if m.currentPage != 0 {
 		t.Errorf("JumpToSection('intro-welcome') should go to page 0, got %d", m.currentPage)
@@ -200,7 +199,6 @@ func TestTutorialJumpMethods(t *testing.T) {
 	if m.currentPage != 5 {
 		t.Error("JumpToSection with invalid section should not change page")
 	}
-	_ = initialPage // silence unused warning
 }
 
 func TestTutorialContextFiltering(t *testing.T) {

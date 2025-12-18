@@ -603,12 +603,13 @@ func (b BoardModel) View(width, height int) string {
 
 		header := headerStyle.Render(headerText)
 
-		// Calculate visible rows (bv-1daf: now 4 content lines)
-		// Cards have 4 content lines + 1 margin, plus borders:
-		// - Non-selected: bottom border only (+1) = ~6 lines
-		// - Selected: full rounded border (+2) = ~7 lines
-		// Use 6 as average to avoid overflow
-		cardHeight := 6
+		// Calculate visible rows (bv-1daf: 4 content lines)
+		// Card height breakdown:
+		// - 4 content lines (line1: meta, line2: title, line3: deps/labels, line4: empty)
+		// - 2 border lines (RoundedBorder adds top + bottom)
+		// - 1 margin line (MarginBottom(1))
+		// Total: 7 lines per card
+		cardHeight := 7
 		visibleCards := (colHeight - 1) / cardHeight
 		if visibleCards < 1 {
 			visibleCards = 1
@@ -636,7 +637,7 @@ func (b BoardModel) View(width, height int) string {
 			issue := issues[rowIdx]
 			isSelected := isFocused && rowIdx == sel
 
-			card := b.renderCard(issue, baseWidth-4, isSelected, colIdx)
+			card := b.renderCard(issue, baseWidth-4, isSelected, colIdx, rowIdx)
 			cards = append(cards, card)
 		}
 
@@ -723,7 +724,7 @@ func formatPriority(p int) string {
 }
 
 // renderCard creates a visually rich card for an issue (bv-1daf: 4-line format)
-func (b BoardModel) renderCard(issue model.Issue, width int, selected bool, colIdx int) string {
+func (b BoardModel) renderCard(issue model.Issue, width int, selected bool, colIdx, rowIdx int) string {
 	t := b.theme
 
 	// ══════════════════════════════════════════════════════════════════════════
@@ -739,6 +740,12 @@ func (b BoardModel) renderCard(issue model.Issue, width int, selected bool, colI
 	blocksOthers := len(b.blocksIndex[issue.ID]) > 0
 
 	// ══════════════════════════════════════════════════════════════════════════
+	// SEARCH MATCH HIGHLIGHTING (bv-yg39)
+	// ══════════════════════════════════════════════════════════════════════════
+	isCurrentMatch := b.IsMatchHighlighted(colIdx, rowIdx) // Current search cursor position
+	isAnyMatch := b.IsSearchMatch(colIdx, rowIdx)          // Any match in search results
+
+	// ══════════════════════════════════════════════════════════════════════════
 	// CARD STYLING - Fixed 4-line height (bv-1daf) with blocking colors (bv-kklp)
 	// ══════════════════════════════════════════════════════════════════════════
 	cardStyle := t.Renderer.NewStyle().
@@ -751,9 +758,14 @@ func (b BoardModel) renderCard(issue model.Issue, width int, selected bool, colI
 	// - Yellow/Orange: High-impact (blocks others)
 	// - Green: Ready to work (open, no blockers)
 	// - Default: Normal border
+	// Search matches override border color (bv-yg39)
 	var borderColor lipgloss.TerminalColor
 	if selected {
 		borderColor = t.Primary // Selected always uses primary
+	} else if isCurrentMatch {
+		borderColor = lipgloss.AdaptiveColor{Light: "#7b1fa2", Dark: "#ce93d8"} // Purple - current search match
+	} else if isAnyMatch {
+		borderColor = lipgloss.AdaptiveColor{Light: "#1565c0", Dark: "#64b5f6"} // Blue - search match
 	} else if hasBlockingDeps {
 		borderColor = lipgloss.AdaptiveColor{Light: "#c62828", Dark: "#ef5350"} // Red - blocked
 	} else if blocksOthers {
@@ -767,6 +779,12 @@ func (b BoardModel) renderCard(issue model.Issue, width int, selected bool, colI
 	if selected {
 		cardStyle = cardStyle.
 			Background(t.Highlight).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(borderColor)
+	} else if isCurrentMatch {
+		// Highlight current match with subtle background (bv-yg39)
+		cardStyle = cardStyle.
+			Background(lipgloss.AdaptiveColor{Light: "#e1bee7", Dark: "#4a148c"}).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(borderColor)
 	} else {
@@ -949,17 +967,22 @@ func (b *BoardModel) renderDetailPanel(width, height int) string {
 			}
 
 			// Dependencies - show with titles and status (bv-kklp)
-			if len(issue.Dependencies) > 0 {
+			// First count blocking deps to avoid empty "Blocked by:" header
+			var blockingDeps []*model.Dependency
+			for _, dep := range issue.Dependencies {
+				if dep != nil && dep.Type.IsBlocking() {
+					blockingDeps = append(blockingDeps, dep)
+				}
+			}
+			if len(blockingDeps) > 0 {
 				content.WriteString("**Blocked by:**\n")
-				for _, dep := range issue.Dependencies {
-					if dep != nil && dep.Type.IsBlocking() {
-						// Look up blocker info for richer display
-						if blocker, ok := b.issueMap[dep.DependsOnID]; ok && blocker != nil {
-							content.WriteString(fmt.Sprintf("- %s: %s (%s)\n",
-								dep.DependsOnID, blocker.Title, blocker.Status))
-						} else {
-							content.WriteString(fmt.Sprintf("- %s\n", dep.DependsOnID))
-						}
+				for _, dep := range blockingDeps {
+					// Look up blocker info for richer display
+					if blocker, ok := b.issueMap[dep.DependsOnID]; ok && blocker != nil {
+						content.WriteString(fmt.Sprintf("- %s: %s (%s)\n",
+							dep.DependsOnID, blocker.Title, blocker.Status))
+					} else {
+						content.WriteString(fmt.Sprintf("- %s\n", dep.DependsOnID))
 					}
 				}
 				content.WriteString("\n")
