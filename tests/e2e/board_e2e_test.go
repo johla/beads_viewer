@@ -14,6 +14,7 @@ import (
 // TestBoardTUIWorkflow launches the TUI in board view mode to verify it initializes cleanly.
 // Uses BV_TUI_AUTOCLOSE_MS to avoid hanging.
 func TestBoardTUIWorkflow(t *testing.T) {
+	skipIfNoScript(t)
 	bv := buildBvBinary(t)
 
 	tempDir := t.TempDir()
@@ -37,7 +38,7 @@ func TestBoardTUIWorkflow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "script", "-q", "/dev/null", bv)
+	cmd := scriptTUICommand(ctx, bv)
 	cmd.Dir = tempDir
 	cmd.Env = append(os.Environ(),
 		"TERM=xterm-256color",

@@ -3,7 +3,6 @@ package main_test
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 // TestTUIPrioritySnapshot launches the TUI briefly to ensure it initializes and exits cleanly.
 // We rely on BV_TUI_AUTOCLOSE_MS to avoid hanging in CI.
 func TestTUIPrioritySnapshot(t *testing.T) {
+	skipIfNoScript(t)
 	bv := buildBvBinary(t)
 
 	tempDir := t.TempDir()
@@ -29,7 +29,7 @@ func TestTUIPrioritySnapshot(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "script", "-q", "/dev/null", bv)
+	cmd := scriptTUICommand(ctx, bv)
 	cmd.Dir = tempDir
 	cmd.Env = append(os.Environ(),
 		"TERM=xterm-256color",

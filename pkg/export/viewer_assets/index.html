@@ -2887,7 +2887,7 @@
         </div>
 
         <!-- Detail Content -->
-        <div class="flex-1 overflow-y-auto px-5 py-4">
+        <div class="flex-1 overflow-y-auto px-5 py-4 min-h-0">
           <!-- Quick Stats -->
           <div class="grid grid-cols-2 gap-2 mb-5">
             <div class="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3">
@@ -3097,7 +3097,7 @@
         <div class="fixed inset-0 bg-black/50" @click="closeIssue()"></div>
         <div class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
           <template x-if="selectedIssue">
-            <div class="flex flex-col h-full">
+            <div class="flex flex-col h-full min-h-0">
               <!-- Header -->
               <div class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700/50 px-6 py-4 shrink-0">
                 <div class="flex items-start justify-between">
@@ -3133,7 +3133,7 @@
               </div>
 
               <!-- Scrollable Content -->
-              <div class="flex-1 overflow-y-auto px-6 py-5">
+              <div class="flex-1 overflow-y-auto px-6 py-5 min-h-0">
 
               <!-- Type & Labels -->
               <div class="flex flex-wrap gap-2 mb-5">

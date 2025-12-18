@@ -1,11 +1,13 @@
 package main_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -66,4 +68,50 @@ func buildBvBinary(t *testing.T) string {
 		t.Fatal("bv binary not built")
 	}
 	return bvBinaryPath
+}
+
+// skipIfNoScript skips the test if the script command is unavailable
+func skipIfNoScript(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("script"); err != nil {
+		t.Skip("skipping: script command not available")
+	}
+}
+
+// scriptTUICommand creates an exec.Cmd that runs the bv binary under `script`
+// to provide a pseudo-TTY for TUI tests. This handles OS-specific differences:
+// - macOS: script -q /dev/null <cmd> [args...]
+// - Linux: script -q -c "<cmd> [args...]" /dev/null
+// Returns nil if script is unavailable (test should skip).
+func scriptTUICommand(ctx context.Context, bvPath string, args ...string) *exec.Cmd {
+	// Check if script command is available
+	if _, err := exec.LookPath("script"); err != nil {
+		return nil
+	}
+
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: script -q /dev/null <cmd> [args...]
+		scriptArgs := []string{"-q", "/dev/null", bvPath}
+		scriptArgs = append(scriptArgs, args...)
+		return exec.CommandContext(ctx, "script", scriptArgs...)
+
+	case "linux":
+		// Linux: script -q -c "<cmd> [args...]" /dev/null
+		// Build the command string - need to quote/escape properly
+		cmdStr := bvPath
+		for _, arg := range args {
+			// Simple quoting for args with spaces
+			if strings.ContainsAny(arg, " \t") {
+				cmdStr += " \"" + arg + "\""
+			} else {
+				cmdStr += " " + arg
+			}
+		}
+		return exec.CommandContext(ctx, "script", "-q", "-c", cmdStr, "/dev/null")
+
+	default:
+		// Windows and others don't have script
+		return nil
+	}
 }

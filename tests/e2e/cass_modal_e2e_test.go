@@ -14,6 +14,7 @@ import (
 // normally when Cass is not available. This is critical for users who don't have
 // Cass installed - the app should work seamlessly without it.
 func TestCassModalGracefulDegradation(t *testing.T) {
+	skipIfNoScript(t)
 	bv := buildBvBinary(t)
 
 	tempDir := t.TempDir()
@@ -34,7 +35,7 @@ func TestCassModalGracefulDegradation(t *testing.T) {
 	defer cancel()
 
 	// Launch TUI - should not crash even without Cass
-	cmd := exec.CommandContext(ctx, "script", "-q", "/dev/null", bv)
+	cmd := scriptTUICommand(ctx, bv)
 	cmd.Dir = tempDir
 	cmd.Env = append(os.Environ(),
 		"TERM=xterm-256color",
@@ -60,6 +61,7 @@ func TestCassModalGracefulDegradation(t *testing.T) {
 // - Simply not respond (no modal to open)
 // Either way, it shouldn't crash.
 func TestCassModalNoCrashOnVKeyWithoutCass(t *testing.T) {
+	skipIfNoScript(t)
 	bv := buildBvBinary(t)
 
 	tempDir := t.TempDir()
@@ -80,7 +82,7 @@ func TestCassModalNoCrashOnVKeyWithoutCass(t *testing.T) {
 
 	// The TUI should handle V key gracefully without Cass
 	// Using auto-close means it will exit normally if no crash occurs
-	cmd := exec.CommandContext(ctx, "script", "-q", "/dev/null", bv)
+	cmd := scriptTUICommand(ctx, bv)
 	cmd.Dir = tempDir
 	cmd.Env = append(os.Environ(),
 		"TERM=xterm-256color",
@@ -100,6 +102,7 @@ func TestCassModalNoCrashOnVKeyWithoutCass(t *testing.T) {
 // TestCassDetectionEnvironmentVariable verifies that the BV_NO_CASS environment
 // variable properly disables Cass integration.
 func TestCassDetectionEnvironmentVariable(t *testing.T) {
+	skipIfNoScript(t)
 	bv := buildBvBinary(t)
 
 	tempDir := t.TempDir()
@@ -117,7 +120,7 @@ func TestCassDetectionEnvironmentVariable(t *testing.T) {
 	defer cancel()
 
 	// With BV_NO_CASS=1, Cass should be disabled
-	cmd := exec.CommandContext(ctx, "script", "-q", "/dev/null", bv)
+	cmd := scriptTUICommand(ctx, bv)
 	cmd.Dir = tempDir
 	cmd.Env = append(os.Environ(),
 		"TERM=xterm-256color",
@@ -172,6 +175,7 @@ func TestCassModalRobotTriageNoCrash(t *testing.T) {
 // Cass availability status. When Cass is unavailable, no indicator should
 // be shown (graceful degradation - don't confuse users with missing feature).
 func TestCassStatusBarIndicator(t *testing.T) {
+	skipIfNoScript(t)
 	bv := buildBvBinary(t)
 
 	tempDir := t.TempDir()
@@ -188,7 +192,7 @@ func TestCassStatusBarIndicator(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "script", "-q", "/dev/null", bv)
+	cmd := scriptTUICommand(ctx, bv)
 	cmd.Dir = tempDir
 	cmd.Env = append(os.Environ(),
 		"TERM=xterm-256color",
@@ -219,6 +223,7 @@ func TestCassStatusBarIndicator(t *testing.T) {
 // TestMultipleViewsWithoutCass verifies that all views (list, board, graph, history)
 // work correctly when Cass is unavailable.
 func TestMultipleViewsWithoutCass(t *testing.T) {
+	skipIfNoScript(t)
 	bv := buildBvBinary(t)
 
 	tempDir := t.TempDir()
@@ -241,7 +246,7 @@ func TestMultipleViewsWithoutCass(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		cmd := exec.CommandContext(ctx, "script", "-q", "/dev/null", bv)
+		cmd := scriptTUICommand(ctx, bv)
 		cmd.Dir = tempDir
 		cmd.Env = append(os.Environ(),
 			"TERM=xterm-256color",

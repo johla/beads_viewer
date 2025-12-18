@@ -254,6 +254,7 @@ func TestTimelineBeadCorrelation(t *testing.T) {
 
 // TestTimelineTUIToggleWithTimeout tests timeline toggle in TUI mode (skips on timeout for CI)
 func TestTimelineTUIToggleWithTimeout(t *testing.T) {
+	skipIfNoScript(t)
 	bv := buildBvBinary(t)
 	repoDir := createMultiCommitRepo(t)
 
@@ -261,7 +262,7 @@ func TestTimelineTUIToggleWithTimeout(t *testing.T) {
 	defer cancel()
 
 	// Use script command to simulate TTY
-	cmd := exec.CommandContext(ctx, "script", "-q", "/dev/null", bv, "--view=history")
+	cmd := scriptTUICommand(ctx, bv, "--view=history")
 	cmd.Dir = repoDir
 	cmd.Env = append(os.Environ(),
 		"TERM=xterm-256color",
