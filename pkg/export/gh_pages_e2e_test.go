@@ -11,7 +11,16 @@ import (
 
 // TestDeployToGitHubPages_E2E_Success verifies the full orchestration flow
 // by mocking both 'gh' and 'git' executables and asserting on the command sequence.
+//
+// IMPORTANT: This test is SKIPPED by default to prevent accidental deployment
+// to real GitHub Pages. If the mock scripts fail to intercept real commands,
+// this could deploy to an actual repository.
+//
+// To run this test explicitly, set BV_TEST_GH_PAGES_E2E=1
 func TestDeployToGitHubPages_E2E_Success(t *testing.T) {
+	if os.Getenv("BV_TEST_GH_PAGES_E2E") != "1" {
+		t.Skip("Skipping GitHub Pages E2E test (set BV_TEST_GH_PAGES_E2E=1 to run)")
+	}
 	if runtime.GOOS == "windows" {
 		t.Skip("shell script stubs not supported on windows in this test")
 	}

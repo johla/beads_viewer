@@ -350,6 +350,25 @@ func (m *InsightsModel) updateDetailContent() {
 	m.detailVP.GotoTop()
 }
 
+// renderMarkdownExplanation renders markdown text for panel explanations.
+// It uses the mdRenderer with the specified width and strips trailing whitespace.
+func (m *InsightsModel) renderMarkdownExplanation(text string, width int) string {
+	if m.mdRenderer == nil || width <= 0 {
+		return text
+	}
+
+	// Temporarily adjust renderer width for this explanation
+	m.mdRenderer.SetWidthWithTheme(width, m.theme)
+
+	rendered, err := m.mdRenderer.Render(text)
+	if err != nil {
+		return text
+	}
+
+	// Strip trailing whitespace/newlines that glamour adds
+	return strings.TrimRight(rendered, " \n\r\t")
+}
+
 func (m *InsightsModel) NextPanel() {
 	m.focusedPanel = (m.focusedPanel + 1) % PanelCount
 	m.updateDetailContent()
@@ -761,12 +780,10 @@ func (m *InsightsModel) renderMetricPanel(panel MetricPanel, width, height int, 
 	}
 	lines = append(lines, subtitleStyle.Render(info.ShortDesc))
 
-	// Explanation (if enabled) - compact, no extra blank line
+	// Explanation (if enabled) - render as markdown for **bold** etc.
 	if m.showExplanations {
-		explainStyle := t.Renderer.NewStyle().
-			Foreground(t.Secondary).
-			Width(width - 4)
-		lines = append(lines, explainStyle.Render(info.WhatIs))
+		explanation := m.renderMarkdownExplanation(info.WhatIs, width-4)
+		lines = append(lines, explanation)
 	}
 
 	// If metric was skipped, show skip reason instead of items
@@ -973,11 +990,10 @@ func (m *InsightsModel) renderCyclesPanel(width, height int, t Theme) string {
 	subtitleStyle := t.Renderer.NewStyle().Foreground(t.Subtext).Italic(true)
 	lines = append(lines, subtitleStyle.Render(info.ShortDesc))
 
+	// Explanation (if enabled) - render as markdown for **bold** etc.
 	if m.showExplanations {
-		explainStyle := t.Renderer.NewStyle().
-			Foreground(t.Secondary).
-			Width(width - 4)
-		lines = append(lines, explainStyle.Render(info.WhatIs))
+		explanation := m.renderMarkdownExplanation(info.WhatIs, width-4)
+		lines = append(lines, explanation)
 	}
 
 	// If skipped, show skip reason
