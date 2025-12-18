@@ -1490,6 +1490,158 @@ func (a *Analyzer) GetOpenBlockers(issueID string) []string {
 	return openBlockers
 }
 
+// BlockerChainEntry represents a single entry in a blocker chain.
+type BlockerChainEntry struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Status      string `json:"status"`
+	Priority    int    `json:"priority"`
+	Depth       int    `json:"depth"`        // 0 = target, 1 = direct blocker, 2 = blocker's blocker, etc.
+	IsRoot      bool   `json:"is_root"`      // True if this is the root blocker (has no open blockers)
+	Actionable  bool   `json:"actionable"`   // True if this can be worked on (no open blockers)
+	BlocksCount int    `json:"blocks_count"` // Number of issues this blocks
+}
+
+// BlockerChainResult contains the full blocker chain analysis.
+type BlockerChainResult struct {
+	TargetID     string              `json:"target_id"`
+	TargetTitle  string              `json:"target_title"`
+	IsBlocked    bool                `json:"is_blocked"`
+	ChainLength  int                 `json:"chain_length"`  // Number of blockers in chain
+	RootBlockers []BlockerChainEntry `json:"root_blockers"` // The root(s) that need to be done first
+	Chain        []BlockerChainEntry `json:"chain"`         // Full chain from target to roots
+	HasCycle     bool                `json:"has_cycle"`     // True if cycle detected
+	CycleIDs     []string            `json:"cycle_ids,omitempty"`
+}
+
+// GetBlockerChain returns the full dependency chain explaining why an issue is blocked.
+// It traverses the blocker graph to find all root blockers (issues with no open blockers).
+// Handles cycles gracefully by detecting and reporting them.
+func (a *Analyzer) GetBlockerChain(issueID string) *BlockerChainResult {
+	issue, ok := a.issueMap[issueID]
+	if !ok {
+		return nil
+	}
+
+	result := &BlockerChainResult{
+		TargetID:     issueID,
+		TargetTitle:  issue.Title,
+		IsBlocked:    false,
+		ChainLength:  0,
+		RootBlockers: []BlockerChainEntry{},
+		Chain:        []BlockerChainEntry{},
+	}
+
+	// Add target as first entry (depth 0)
+	targetEntry := BlockerChainEntry{
+		ID:          issueID,
+		Title:       issue.Title,
+		Status:      string(issue.Status),
+		Priority:    issue.Priority,
+		Depth:       0,
+		IsRoot:      false,
+		Actionable:  len(a.GetOpenBlockers(issueID)) == 0,
+		BlocksCount: a.countBlockedBy(issueID),
+	}
+	result.Chain = append(result.Chain, targetEntry)
+
+	// Get direct open blockers
+	openBlockers := a.GetOpenBlockers(issueID)
+	if len(openBlockers) == 0 {
+		targetEntry.IsRoot = true
+		result.Chain[0] = targetEntry
+		return result
+	}
+
+	result.IsBlocked = true
+
+	// BFS to find all blockers and detect cycles
+	visited := make(map[string]bool)
+	visited[issueID] = true
+
+	type queueItem struct {
+		id    string
+		depth int
+	}
+	queue := []queueItem{}
+
+	// Add direct blockers to queue
+	for _, blockerID := range openBlockers {
+		queue = append(queue, queueItem{id: blockerID, depth: 1})
+	}
+
+	for len(queue) > 0 {
+		item := queue[0]
+		queue = queue[1:]
+
+		if visited[item.id] {
+			// Cycle detected
+			result.HasCycle = true
+			result.CycleIDs = append(result.CycleIDs, item.id)
+			continue
+		}
+		visited[item.id] = true
+
+		blocker, exists := a.issueMap[item.id]
+		if !exists {
+			continue
+		}
+
+		blockerOpenBlockers := a.GetOpenBlockers(item.id)
+		isRoot := len(blockerOpenBlockers) == 0
+
+		entry := BlockerChainEntry{
+			ID:          item.id,
+			Title:       blocker.Title,
+			Status:      string(blocker.Status),
+			Priority:    blocker.Priority,
+			Depth:       item.depth,
+			IsRoot:      isRoot,
+			Actionable:  isRoot,
+			BlocksCount: a.countBlockedBy(item.id),
+		}
+		result.Chain = append(result.Chain, entry)
+
+		if isRoot {
+			result.RootBlockers = append(result.RootBlockers, entry)
+		} else {
+			// Add this blocker's blockers to queue
+			for _, nextID := range blockerOpenBlockers {
+				queue = append(queue, queueItem{id: nextID, depth: item.depth + 1})
+			}
+		}
+	}
+
+	result.ChainLength = len(result.Chain) - 1 // Exclude target itself
+
+	// Sort root blockers by priority (lower = higher priority)
+	sort.Slice(result.RootBlockers, func(i, j int) bool {
+		if result.RootBlockers[i].Priority != result.RootBlockers[j].Priority {
+			return result.RootBlockers[i].Priority < result.RootBlockers[j].Priority
+		}
+		return result.RootBlockers[i].ID < result.RootBlockers[j].ID
+	})
+
+	return result
+}
+
+// countBlockedBy returns the number of open issues that are blocked by the given issue.
+func (a *Analyzer) countBlockedBy(issueID string) int {
+	count := 0
+	for _, issue := range a.issueMap {
+		if issue.Status == model.StatusClosed {
+			continue
+		}
+		for _, dep := range issue.Dependencies {
+			if dep != nil && dep.Type.IsBlocking() && dep.DependsOnID == issueID {
+				count++
+				break
+			}
+		}
+	}
+	return count
+}
+
 // computePageRank returns PageRank weights for nodes of g.
 //
 // It uses a deterministic power iteration with damping factor damp and terminates

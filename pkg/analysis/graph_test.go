@@ -575,3 +575,150 @@ func TestImpactScore(t *testing.T) {
 		t.Errorf("Expected A to have score 1, got %f", stats.GetCriticalPathScore("A"))
 	}
 }
+
+// TestGetBlockerChain tests the blocker chain analysis functionality.
+func TestGetBlockerChain(t *testing.T) {
+	t.Run("no blockers", func(t *testing.T) {
+		issues := []model.Issue{
+			{ID: "A", Status: model.StatusOpen, Title: "Issue A"},
+		}
+		an := analysis.NewAnalyzer(issues)
+		result := an.GetBlockerChain("A")
+
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+		if result.IsBlocked {
+			t.Error("Expected IsBlocked=false for issue with no blockers")
+		}
+		if len(result.Chain) != 1 {
+			t.Errorf("Expected 1 chain entry (target itself), got %d", len(result.Chain))
+		}
+		if !result.Chain[0].Actionable {
+			t.Error("Expected target to be actionable")
+		}
+	})
+
+	t.Run("simple chain", func(t *testing.T) {
+		// A blocked by B blocked by C (all open)
+		issues := []model.Issue{
+			{ID: "A", Status: model.StatusOpen, Title: "Issue A", Dependencies: []*model.Dependency{
+				{DependsOnID: "B", Type: model.DepBlocks},
+			}},
+			{ID: "B", Status: model.StatusOpen, Title: "Issue B", Dependencies: []*model.Dependency{
+				{DependsOnID: "C", Type: model.DepBlocks},
+			}},
+			{ID: "C", Status: model.StatusOpen, Title: "Issue C"},
+		}
+		an := analysis.NewAnalyzer(issues)
+		result := an.GetBlockerChain("A")
+
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+		if !result.IsBlocked {
+			t.Error("Expected IsBlocked=true")
+		}
+		if result.ChainLength != 2 {
+			t.Errorf("Expected chain length 2, got %d", result.ChainLength)
+		}
+		if len(result.RootBlockers) != 1 {
+			t.Errorf("Expected 1 root blocker, got %d", len(result.RootBlockers))
+		}
+		if result.RootBlockers[0].ID != "C" {
+			t.Errorf("Expected root blocker C, got %s", result.RootBlockers[0].ID)
+		}
+		if !result.RootBlockers[0].Actionable {
+			t.Error("Expected root blocker to be actionable")
+		}
+	})
+
+	t.Run("closed blocker not in chain", func(t *testing.T) {
+		// A blocked by B, but B is closed - A should not be blocked
+		issues := []model.Issue{
+			{ID: "A", Status: model.StatusOpen, Title: "Issue A", Dependencies: []*model.Dependency{
+				{DependsOnID: "B", Type: model.DepBlocks},
+			}},
+			{ID: "B", Status: model.StatusClosed, Title: "Issue B"},
+		}
+		an := analysis.NewAnalyzer(issues)
+		result := an.GetBlockerChain("A")
+
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+		if result.IsBlocked {
+			t.Error("Expected IsBlocked=false since blocker is closed")
+		}
+	})
+
+	t.Run("multiple root blockers", func(t *testing.T) {
+		// A blocked by B and C (both open, both are roots)
+		issues := []model.Issue{
+			{ID: "A", Status: model.StatusOpen, Title: "Issue A", Priority: 2, Dependencies: []*model.Dependency{
+				{DependsOnID: "B", Type: model.DepBlocks},
+				{DependsOnID: "C", Type: model.DepBlocks},
+			}},
+			{ID: "B", Status: model.StatusOpen, Title: "Issue B", Priority: 1},
+			{ID: "C", Status: model.StatusOpen, Title: "Issue C", Priority: 0},
+		}
+		an := analysis.NewAnalyzer(issues)
+		result := an.GetBlockerChain("A")
+
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+		if len(result.RootBlockers) != 2 {
+			t.Errorf("Expected 2 root blockers, got %d", len(result.RootBlockers))
+		}
+		// Root blockers should be sorted by priority (C with P0 first)
+		if result.RootBlockers[0].ID != "C" {
+			t.Errorf("Expected C (P0) as first root blocker, got %s", result.RootBlockers[0].ID)
+		}
+	})
+
+	t.Run("non-existent issue", func(t *testing.T) {
+		issues := []model.Issue{
+			{ID: "A", Status: model.StatusOpen, Title: "Issue A"},
+		}
+		an := analysis.NewAnalyzer(issues)
+		result := an.GetBlockerChain("DOES_NOT_EXIST")
+
+		if result != nil {
+			t.Error("Expected nil result for non-existent issue")
+		}
+	})
+
+	t.Run("blocks count populated", func(t *testing.T) {
+		// C blocks both A and B
+		issues := []model.Issue{
+			{ID: "A", Status: model.StatusOpen, Title: "Issue A", Dependencies: []*model.Dependency{
+				{DependsOnID: "C", Type: model.DepBlocks},
+			}},
+			{ID: "B", Status: model.StatusOpen, Title: "Issue B", Dependencies: []*model.Dependency{
+				{DependsOnID: "C", Type: model.DepBlocks},
+			}},
+			{ID: "C", Status: model.StatusOpen, Title: "Issue C"},
+		}
+		an := analysis.NewAnalyzer(issues)
+		result := an.GetBlockerChain("A")
+
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+		// Find C in the chain
+		var cEntry *analysis.BlockerChainEntry
+		for i := range result.Chain {
+			if result.Chain[i].ID == "C" {
+				cEntry = &result.Chain[i]
+				break
+			}
+		}
+		if cEntry == nil {
+			t.Fatal("Expected C in chain")
+		}
+		if cEntry.BlocksCount != 2 {
+			t.Errorf("Expected C to block 2 issues, got %d", cEntry.BlocksCount)
+		}
+	})
+}

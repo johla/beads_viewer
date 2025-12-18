@@ -128,6 +128,8 @@ func main() {
 	robotFileRelations := flag.String("robot-file-relations", "", "Output files that frequently co-change with the given file path")
 	relationsThreshold := flag.Float64("relations-threshold", 0.5, "Minimum correlation threshold (0.0-1.0) for related files")
 	relationsLimit := flag.Int("relations-limit", 10, "Max related files to show")
+	// Blocker chain analysis flag (bv-nlo0)
+	robotBlockerChain := flag.String("robot-blocker-chain", "", "Output full blocker chain analysis for issue ID as JSON")
 	// Sprint flags (bv-156)
 	robotSprintList := flag.Bool("robot-sprint-list", false, "Output sprints as JSON")
 	robotSprintShow := flag.String("robot-sprint-show", "", "Output specific sprint details as JSON")
@@ -208,6 +210,7 @@ func main() {
 		*fileHotspots ||
 		*robotImpact != "" ||
 		*robotFileRelations != "" ||
+		*robotBlockerChain != "" ||
 		*robotSprintList ||
 		*robotSprintShow != "" ||
 		*robotForecast != "" ||
@@ -3253,6 +3256,52 @@ func main() {
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(output); err != nil {
 			fmt.Fprintf(os.Stderr, "Error encoding file relations: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	// Handle --robot-blocker-chain flag (bv-nlo0)
+	if *robotBlockerChain != "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting current directory: %v\n", err)
+			os.Exit(1)
+		}
+
+		issues, err := loader.LoadIssues(cwd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading beads: %v\n", err)
+			os.Exit(1)
+		}
+
+		an := analysis.NewAnalyzer(issues)
+		result := an.GetBlockerChain(*robotBlockerChain)
+
+		if result == nil {
+			fmt.Fprintf(os.Stderr, "Issue not found: %s\n", *robotBlockerChain)
+			os.Exit(1)
+		}
+
+		type BlockerChainOutput struct {
+			GeneratedAt time.Time                    `json:"generated_at"`
+			DataHash    string                       `json:"data_hash"`
+			Result      *analysis.BlockerChainResult `json:"result"`
+		}
+
+		// Compute data hash for consistency
+		dataHash := analysis.ComputeDataHash(issues)
+
+		output := BlockerChainOutput{
+			GeneratedAt: time.Now(),
+			DataHash:    dataHash,
+			Result:      result,
+		}
+
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(output); err != nil {
+			fmt.Fprintf(os.Stderr, "Error encoding blocker chain: %v\n", err)
 			os.Exit(1)
 		}
 		os.Exit(0)
