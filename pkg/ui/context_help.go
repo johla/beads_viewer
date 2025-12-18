@@ -25,6 +25,7 @@ var ContextHelpContent = map[Context]string{
 	ContextLabelDashboard: contextHelpLabelDashboard,
 	ContextAttention:     contextHelpAttention,
 	ContextAgentPrompt:   contextHelpAgentPrompt,
+	ContextCassSession:   contextHelpCassSession,
 }
 
 // GetContextHelp returns the help content for a given context.
@@ -143,46 +144,67 @@ const contextHelpBoard = `## Board View
 **Grouping**
   s         Cycle: Status/Priority/Type
 
+**Visual Indicators** (card borders)
+  🔴 Red     Has blockers
+  🟡 Yellow  High-impact (blocks others)
+  🟢 Green   Ready to work
+
 **Actions**
   Tab       Toggle detail panel
   Ctrl+j/k  Scroll detail panel
+  V         Preview cass sessions
   y         Copy issue ID
   Enter     View issue details
   Esc       Return to List view`
 
 const contextHelpInsights = `## Insights Panel
 
-**Priority Score** = explicit priority
-  + blocking factor + freshness
+**Navigation**
+  h/l       Switch between panels
+  j/k       Move within panel
+  Ctrl+j/k  Scroll detail section
+  Tab       Next panel
+
+**Heatmap** (Priority × Depth grid)
+  m         Toggle heatmap view
+  Arrows    Navigate cells
+  Enter     Drill into cell
+
+**Details**
+  e         Toggle explanations
+  x         Toggle calculations
 
 **Attention Indicators**
 • Stale: Open too long
 • Blocked chains: Bottlenecks
 • Priority inversions: Low blocking high
 
-**Actions**
-  m         Toggle heatmap mode
   Enter     View selected issue
-  Esc       Close panel`
+  Esc       Return to list`
 
 const contextHelpHistory = `## History View
 
 **Navigation**
   j/k       Navigate primary pane
   J/K       Navigate secondary pane
-  Tab       Toggle focus between panes
+  Tab       Cycle focus (list→detail→files)
   Enter     Jump to selected bead
 
 **View Modes**
   v         Toggle Bead/Git mode
+  f         Toggle file tree panel
   /         Search commits/beads
   c         Cycle confidence filter
+
+**Causality Markers**
+  🎯 Direct   Commit mentions bead ID
+  🔗 Temporal Within time window
+  📁 File     Touches associated files
 
 **Actions**
   y         Copy commit SHA
   o         Open commit in browser
-  g         Go to graph view
-  h/Esc     Return to list`
+  Esc       Return to list`
 
 const contextHelpDetail = `## Detail View
 
@@ -362,3 +384,25 @@ const contextHelpGeneric = `## Quick Reference
 **Views**
   b/g/i/h   Switch views
   ;         Shortcuts sidebar`
+
+const contextHelpCassSession = `## Cass Session Preview
+
+Shows coding sessions correlated with
+the selected bead via cass search.
+
+**Navigation**
+  j/k       Move between sessions
+  Enter     Expand session details
+  Esc       Close modal
+
+**Actions**
+  y         Copy cass command
+  o         Open session file
+
+**Match Types**
+  ID        Direct bead ID match
+  File      Modified same files
+  Title     Keyword similarity
+
+Sessions ranked by relevance score.
+Only shown when cass is installed.`

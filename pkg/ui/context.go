@@ -20,6 +20,7 @@ const (
 	ContextAlerts            Context = "alerts"
 	ContextRepoPicker        Context = "repo-picker"
 	ContextAgentPrompt       Context = "agent-prompt"
+	ContextCassSession       Context = "cass-session"
 
 	// Views
 	ContextInsights       Context = "insights"
@@ -49,6 +50,11 @@ const (
 // Priority order: overlays → views → detail states → filter → default
 func (m Model) CurrentContext() Context {
 	// === Overlays (most specific - check first) ===
+
+	// Cass session modal (bv-qi94)
+	if m.showCassModal {
+		return ContextCassSession
+	}
 
 	// Agent prompt modal
 	if m.showAgentPrompt {
@@ -194,6 +200,7 @@ func (c Context) Description() string {
 		ContextAlerts:             "Alerts panel",
 		ContextRepoPicker:         "Repo picker",
 		ContextAgentPrompt:        "Agent prompt",
+		ContextCassSession:        "Cass session preview",
 		ContextInsights:           "Insights panel",
 		ContextFlowMatrix:         "Flow matrix",
 		ContextGraph:              "Dependency graph",
@@ -220,7 +227,8 @@ func (c Context) IsOverlay() bool {
 	switch c {
 	case ContextLabelPicker, ContextRecipePicker, ContextHelp, ContextQuitConfirm,
 		ContextLabelHealthDetail, ContextLabelDrilldown, ContextLabelGraphAnalysis,
-		ContextTimeTravelInput, ContextAlerts, ContextRepoPicker, ContextAgentPrompt:
+		ContextTimeTravelInput, ContextAlerts, ContextRepoPicker, ContextAgentPrompt,
+		ContextCassSession:
 		return true
 	}
 	return false
@@ -267,6 +275,7 @@ func (c Context) TutorialPages() []int {
 		ContextLabelGraphAnalysis: {6, 11},       // Graph, Labels
 		ContextTimeTravelInput:    {10},          // Time-Travel
 		ContextQuitConfirm:        {1},           // Navigation basics
+		ContextCassSession:        {8},           // History (cass integrates with history)
 	}
 	if pages, ok := pageMap[c]; ok {
 		return pages

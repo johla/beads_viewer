@@ -3142,6 +3142,7 @@ func (m Model) View() string {
 		// Interactive tutorial (bv-8y31) - full screen overlay
 		body = m.tutorialModel.View()
 	} else if m.focused == focusInsights {
+		m.insightsPanel.SetSize(m.width, m.height-1)
 		body = m.insightsPanel.View()
 	} else if m.focused == focusFlowMatrix {
 		m.flowMatrix.SetSize(m.width, m.height-1)

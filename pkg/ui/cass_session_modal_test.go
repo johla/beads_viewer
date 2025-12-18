@@ -519,3 +519,221 @@ func TestCassSessionModal_NavigationCappedByMaxDisplay(t *testing.T) {
 		t.Error("Selected session should be the third displayed session (agent3)")
 	}
 }
+
+// === Additional tests for bv-mtyf (Documentation & Testing Refresh) ===
+
+func TestCassSessionModal_NilFieldsHandling(t *testing.T) {
+	theme := testTheme()
+
+	// Test with minimal/nil fields - should not panic
+	result := cass.CorrelationResult{
+		BeadID:      "bv-nil",
+		TopSessions: []cass.ScoredResult{{}}, // Empty session
+	}
+
+	modal := NewCassSessionModal("bv-nil", result, theme)
+
+	// View should render without panic even with empty session
+	view := modal.View()
+	if view == "" {
+		t.Error("View should not be empty even with minimal data")
+	}
+
+	// Should contain header
+	if !strings.Contains(view, "Related Coding Sessions") {
+		t.Error("View should contain header even with nil fields")
+	}
+}
+
+func TestCassSessionModal_ZeroTimestamp(t *testing.T) {
+	theme := testTheme()
+	result := cass.CorrelationResult{
+		BeadID: "bv-zero-time",
+		TopSessions: []cass.ScoredResult{
+			{
+				SearchResult: cass.SearchResult{
+					Agent:     "claude",
+					Timestamp: time.Time{}, // Zero time
+					Snippet:   "Test",
+				},
+			},
+		},
+	}
+
+	modal := NewCassSessionModal("bv-zero-time", result, theme)
+	view := modal.View()
+
+	// Should handle zero timestamp gracefully (shows "unknown")
+	if !strings.Contains(view, "unknown") && !strings.Contains(view, "claude") {
+		t.Error("View should handle zero timestamp gracefully")
+	}
+}
+
+func TestCassSessionModal_CopyFeedbackTiming(t *testing.T) {
+	theme := testTheme()
+	result := cass.CorrelationResult{
+		BeadID:   "bv-feedback",
+		Keywords: []string{"test"},
+	}
+
+	modal := NewCassSessionModal("bv-feedback", result, theme)
+
+	// Initially copied should be false
+	if modal.copied {
+		t.Error("copied should be false initially")
+	}
+
+	// Simulate copy (may fail in CI but should set the flag if clipboard available)
+	modal, _ = modal.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+
+	// If clipboard is available, copied should be true and copiedAt set
+	// We can't reliably test this in CI, but the View() shouldn't panic
+	view := modal.View()
+	if view == "" {
+		t.Error("View should render after copy attempt")
+	}
+}
+
+func TestCassSessionModal_SpecialCharactersInSnippet(t *testing.T) {
+	theme := testTheme()
+	result := cass.CorrelationResult{
+		BeadID: "bv-special",
+		TopSessions: []cass.ScoredResult{
+			{
+				SearchResult: cass.SearchResult{
+					Agent:   "claude",
+					Snippet: "Special chars: <html>\"quotes\" & 'apostrophes' \ttab\nnewline",
+				},
+			},
+		},
+	}
+
+	modal := NewCassSessionModal("bv-special", result, theme)
+	view := modal.View()
+
+	// View should render without issues
+	if view == "" {
+		t.Error("View should not be empty with special characters")
+	}
+
+	// Should contain the agent name at least
+	if !strings.Contains(view, "claude") {
+		t.Error("View should contain agent name")
+	}
+}
+
+func TestCassSessionModal_UnicodeInSnippet(t *testing.T) {
+	theme := testTheme()
+	result := cass.CorrelationResult{
+		BeadID: "bv-unicode",
+		TopSessions: []cass.ScoredResult{
+			{
+				SearchResult: cass.SearchResult{
+					Agent:   "claude",
+					Snippet: "Unicode: 你好世界 🎉 émojis ñ café αβγ",
+				},
+			},
+		},
+	}
+
+	modal := NewCassSessionModal("bv-unicode", result, theme)
+	view := modal.View()
+
+	// View should render without issues
+	if view == "" {
+		t.Error("View should not be empty with unicode")
+	}
+
+	// Should contain the agent name
+	if !strings.Contains(view, "claude") {
+		t.Error("View should contain agent name")
+	}
+}
+
+func TestCassSessionModal_LongAgentName(t *testing.T) {
+	theme := testTheme()
+	result := cass.CorrelationResult{
+		BeadID: "bv-long-agent",
+		TopSessions: []cass.ScoredResult{
+			{
+				SearchResult: cass.SearchResult{
+					Agent:   "this-is-a-very-long-agent-name-that-might-cause-layout-issues",
+					Snippet: "Test",
+				},
+			},
+		},
+	}
+
+	modal := NewCassSessionModal("bv-long-agent", result, theme)
+	view := modal.View()
+
+	// View should render without panic
+	if view == "" {
+		t.Error("View should not be empty with long agent name")
+	}
+}
+
+func TestCassSessionModal_EmptyBeadID(t *testing.T) {
+	theme := testTheme()
+	result := cass.CorrelationResult{
+		BeadID: "",
+		TopSessions: []cass.ScoredResult{
+			{SearchResult: cass.SearchResult{Agent: "claude", Snippet: "Test"}},
+		},
+	}
+
+	modal := NewCassSessionModal("", result, theme)
+
+	// Should not panic and should have some search command
+	if modal.searchCmd == "" {
+		t.Error("searchCmd should not be empty even with empty beadID")
+	}
+
+	view := modal.View()
+	if view == "" {
+		t.Error("View should not be empty")
+	}
+}
+
+func TestCassSessionModal_ManyKeywords(t *testing.T) {
+	theme := testTheme()
+	result := cass.CorrelationResult{
+		BeadID:   "bv-keywords",
+		Keywords: []string{"auth", "login", "session", "token", "jwt", "oauth", "security", "middleware"},
+	}
+
+	modal := NewCassSessionModal("bv-keywords", result, theme)
+
+	// Search command should contain all keywords
+	if !strings.Contains(modal.searchCmd, "auth login session") {
+		t.Errorf("searchCmd should contain keywords, got: %s", modal.searchCmd)
+	}
+
+	view := modal.View()
+	if view == "" {
+		t.Error("View should not be empty")
+	}
+}
+
+func TestCassSessionModal_UnhandledKeyIgnored(t *testing.T) {
+	theme := testTheme()
+	result := cass.CorrelationResult{
+		BeadID: "bv-key",
+		TopSessions: []cass.ScoredResult{
+			{SearchResult: cass.SearchResult{Agent: "claude", Snippet: "Test"}},
+			{SearchResult: cass.SearchResult{Agent: "cursor", Snippet: "Test2"}},
+		},
+	}
+
+	modal := NewCassSessionModal("bv-key", result, theme)
+	initialSelected := modal.selected
+
+	// Press unhandled keys - should not change state
+	modal, _ = modal.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	modal, _ = modal.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	modal, _ = modal.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+
+	if modal.selected != initialSelected {
+		t.Errorf("Unhandled keys should not change selection, got %d", modal.selected)
+	}
+}
