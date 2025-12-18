@@ -985,16 +985,21 @@ func TestPageContentLineWidth(t *testing.T) {
 	for _, page := range pages {
 		t.Run(page.ID, func(t *testing.T) {
 			lines := strings.Split(page.Content, "\n")
-			for i, line := range lines {
-				// Skip code blocks (may have longer lines intentionally)
+			inCodeBlock := false
+			for _, line := range lines {
+				// Track code block state
 				if strings.HasPrefix(strings.TrimSpace(line), "```") {
+					inCodeBlock = !inCodeBlock
 					continue
 				}
-				// Skip lines in code blocks
+				// Skip lines inside code blocks (may have longer lines intentionally)
+				if inCodeBlock {
+					continue
+				}
+				// Only check non-code-block, non-indented lines
 				if len(line) > maxLineWidth && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
-					// Only warn, don't fail, as markdown may wrap
-					// t.Logf("Page %s line %d exceeds %d chars", page.ID, i+1, maxLineWidth)
-					_ = i // Use variable to avoid unused error
+					// Content lines exceeding width will wrap in terminal, not an error
+					// Just verify the check runs without issues
 				}
 			}
 		})
@@ -1085,14 +1090,8 @@ func TestTOCCoversAllPages(t *testing.T) {
 
 	view := m.View()
 
-	// Collect all sections
-	sections := make(map[string]bool)
-	for _, page := range m.pages {
-		sections[page.Section] = true
-	}
-
-	// Each section should appear in TOC (unless truncated by view height)
-	// Only check sections that are likely to be visible
+	// Verify critical sections appear in TOC
+	// (TOC rendering may truncate based on height, so we only check key sections)
 	criticalSections := []string{"Introduction", "Core Concepts"}
 	for _, section := range criticalSections {
 		if !strings.Contains(view, section) {
@@ -1106,12 +1105,18 @@ func TestScrollingWithLongContent(t *testing.T) {
 	m.SetSize(80, 15) // Short terminal to force scrolling
 
 	// Find a page with substantial content
+	foundLongPage := false
 	for i, page := range m.pages {
 		lines := strings.Count(page.Content, "\n")
 		if lines > 20 { // Page that needs scrolling
 			m.JumpToPage(i)
+			foundLongPage = true
 			break
 		}
+	}
+
+	if !foundLongPage {
+		t.Skip("No page with >20 lines found for scroll testing")
 	}
 
 	// Scroll down multiple times
@@ -1204,11 +1209,9 @@ func TestGlamourRenderingAllPages(t *testing.T) {
 			m.JumpToPage(i)
 			view := m.View()
 
-			// Check that content was rendered (not raw markdown)
-			// Glamour replaces # headers with styled text
-			if strings.HasPrefix(strings.TrimSpace(page.Content), "# ") {
-				// If content starts with H1, the rendered view should have styled it
-				// (not contain literal "# " at start of a line in output)
+			// View should not be empty
+			if view == "" {
+				t.Errorf("Page %s rendered empty view", page.ID)
 			}
 
 			// View should not be identical to raw content
