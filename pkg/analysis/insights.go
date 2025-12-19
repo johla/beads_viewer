@@ -58,7 +58,27 @@ func (s *GraphStats) GenerateInsights(limit int) Insights {
 	var velocity *VelocitySnapshot
 
 	if limit <= 0 {
-		limit = len(pageRank) // use full set; maps all share same key set
+		maxLen := 0
+		metricLens := []int{
+			len(pageRank),
+			len(betweenness),
+			len(criticalPath),
+			len(eigenvector),
+			len(hubs),
+			len(authorities),
+			len(coreNum),
+			len(slack),
+		}
+		for _, l := range metricLens {
+			if l > maxLen {
+				maxLen = l
+			}
+		}
+		if maxLen > 0 {
+			limit = maxLen
+		} else {
+			limit = s.NodeCount
+		}
 	}
 
 	return Insights{

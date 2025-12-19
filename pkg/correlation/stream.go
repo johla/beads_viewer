@@ -28,13 +28,16 @@ type StreamExtractor struct {
 // NewStreamExtractor creates a new streaming extractor
 func NewStreamExtractor(repoPath string) *StreamExtractor {
 	return &StreamExtractor{
-		repoPath: repoPath,
-		beadsFiles: []string{
-			".beads/beads.jsonl",
-			".beads/beads.base.jsonl",
-			".beads/issues.jsonl",
-		},
+		repoPath:   repoPath,
+		beadsFiles: pickBeadsFiles(repoPath, defaultBeadsFiles),
 	}
+}
+
+func (s *StreamExtractor) primaryBeadsFile() string {
+	if len(s.beadsFiles) > 0 && s.beadsFiles[0] != "" {
+		return s.beadsFiles[0]
+	}
+	return defaultBeadsFiles[0]
 }
 
 // SetProgressCallback sets the progress callback for streaming operations
@@ -108,7 +111,7 @@ func (s *StreamExtractor) StreamEvents(opts StreamOptions) ([]BeadEvent, error) 
 // countCommits quickly counts commits matching the criteria
 func (s *StreamExtractor) countCommits(opts StreamOptions) (int, error) {
 	args := []string{"rev-list", "--count", "HEAD", "--"}
-	args = append(args, s.beadsFiles[0])
+	args = append(args, s.primaryBeadsFile())
 
 	if opts.Since != nil {
 		args = insertBefore(args, "--", fmt.Sprintf("--since=%s", opts.Since.Format(time.RFC3339)))
@@ -152,11 +155,7 @@ func (s *StreamExtractor) buildStreamCommand(opts StreamOptions, limit int) *exe
 	args = append(args, "--")
 
 	// Use primary beads file
-	primary := ".beads/beads.jsonl"
-	if len(s.beadsFiles) > 0 {
-		primary = s.beadsFiles[0]
-	}
-	args = append(args, primary)
+	args = append(args, s.primaryBeadsFile())
 
 	cmd := exec.Command("git", args...)
 	cmd.Dir = s.repoPath

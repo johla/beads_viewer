@@ -3,6 +3,7 @@ beads_reference/
 /main
 *.test
 cmd/bv/bv
+.DS_Store
 
 # Build artifacts
 dist/
@@ -22,6 +23,8 @@ beads_report_beads_viewer_*.md
 # Rust/WASM build artifacts
 bv-graph-wasm/target/
 bv-graph-wasm/pkg/
+pkg/export/wasm_scorer/target/
+pkg/export/wasm_scorer/pkg/
 node_modules/
 beads_viewer_graph*.html
 test-results/

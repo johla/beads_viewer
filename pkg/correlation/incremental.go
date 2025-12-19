@@ -255,7 +255,7 @@ func extractEventsFromCommits(extractor *Extractor, commitSHAs []string, filterB
 		"--no-walk",
 	}
 	args = append(args, commitSHAs...)
-	args = append(args, "--", ".beads/beads.jsonl")
+	args = append(args, "--", extractor.primaryBeadsFile())
 
 	cmd := exec.Command("git", args...)
 	cmd.Dir = extractor.repoPath

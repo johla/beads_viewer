@@ -34,12 +34,8 @@ type Extractor struct {
 // backward compatibility with existing call sites that pass only repoPath.
 func NewExtractor(repoPath string, beadsFilePath ...string) *Extractor {
 	e := &Extractor{
-		repoPath: repoPath,
-		beadsFiles: []string{
-			".beads/beads.jsonl",
-			".beads/beads.base.jsonl",
-			".beads/issues.jsonl",
-		},
+		repoPath:   repoPath,
+		beadsFiles: pickBeadsFiles(repoPath, defaultBeadsFiles),
 	}
 
 	// If a specific file is provided, prioritize it
@@ -52,13 +48,20 @@ func NewExtractor(repoPath string, beadsFilePath ...string) *Extractor {
 		// For simplicity, we prepend it to the list so it's picked up by buildGitLogArgs as primary
 		rel, err := filepath.Rel(repoPath, beadPath)
 		if err == nil {
-			e.beadsFiles = append([]string{rel}, e.beadsFiles...)
+			e.beadsFiles = prependBeadsFile(rel, e.beadsFiles)
 		} else {
-			e.beadsFiles = append([]string{beadPath}, e.beadsFiles...)
+			e.beadsFiles = prependBeadsFile(beadPath, e.beadsFiles)
 		}
 	}
 
 	return e
+}
+
+func (e *Extractor) primaryBeadsFile() string {
+	if len(e.beadsFiles) > 0 && e.beadsFiles[0] != "" {
+		return e.beadsFiles[0]
+	}
+	return defaultBeadsFiles[0]
 }
 
 // commitInfo holds parsed commit metadata
