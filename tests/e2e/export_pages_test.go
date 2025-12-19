@@ -53,6 +53,8 @@ func TestExportPages_IncludesHistoryAndRunsHooks(t *testing.T) {
 		filepath.Join(exportDir, "index.html"),
 		filepath.Join(exportDir, "beads.sqlite3"),
 		filepath.Join(exportDir, "beads.sqlite3.config.json"),
+		filepath.Join(exportDir, "hybrid_scorer.js"),
+		filepath.Join(exportDir, "wasm_loader.js"),
 		filepath.Join(exportDir, "data", "meta.json"),
 		filepath.Join(exportDir, "data", "triage.json"),
 		filepath.Join(exportDir, "data", "history.json"),
@@ -220,6 +222,90 @@ func TestExportPages_HTMLStructure(t *testing.T) {
 	if !strings.Contains(html, "Content-Security-Policy") {
 		t.Error("missing Content-Security-Policy meta tag")
 	}
+}
+
+func TestExportPages_IssueOverviewMetrics(t *testing.T) {
+	bv := buildBvBinary(t)
+	stageViewerAssets(t, bv)
+
+	repoDir := createRepoWithDeps(t)
+	exportDir := filepath.Join(repoDir, "bv-pages")
+
+	cmd := exec.Command(bv, "--export-pages", exportDir)
+	cmd.Dir = repoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("--export-pages failed: %v\n%s", err, out)
+	}
+
+	dbPath := filepath.Join(exportDir, "beads.sqlite3")
+	db, err := openSQLiteDB(dbPath)
+	if err != nil {
+		t.Fatalf("open database %s: %v", dbPath, err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query("PRAGMA table_info(issue_overview_mv)")
+	if err != nil {
+		t.Fatalf("pragma table_info: %v", err)
+	}
+	defer rows.Close()
+
+	columns := make(map[string]bool)
+	for rows.Next() {
+		var cid int
+		var name string
+		var ctype string
+		var notnull int
+		var dfltValue interface{}
+		var pk int
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			t.Fatalf("scan table_info: %v", err)
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("table_info rows error: %v", err)
+	}
+
+	required := []string{"pagerank", "betweenness", "blocker_count", "dependent_count", "critical_depth", "in_cycle"}
+	for _, col := range required {
+		if !columns[col] {
+			t.Fatalf("missing column %q in issue_overview_mv", col)
+		}
+	}
+
+	type metricsRow struct {
+		blockerCount   int
+		dependentCount int
+		criticalDepth  int
+		inCycle        int
+	}
+
+	assertMetrics := func(id string, wantBlockers, wantDependents int) {
+		t.Helper()
+		var row metricsRow
+		err := db.QueryRow(`SELECT blocker_count, dependent_count, critical_depth, in_cycle FROM issue_overview_mv WHERE id = ?`, id).
+			Scan(&row.blockerCount, &row.dependentCount, &row.criticalDepth, &row.inCycle)
+		if err != nil {
+			t.Fatalf("query metrics for %s: %v", id, err)
+		}
+		if row.blockerCount != wantBlockers {
+			t.Fatalf("%s blocker_count=%d, want %d", id, row.blockerCount, wantBlockers)
+		}
+		if row.dependentCount != wantDependents {
+			t.Fatalf("%s dependent_count=%d, want %d", id, row.dependentCount, wantDependents)
+		}
+		if row.criticalDepth < 0 {
+			t.Fatalf("%s critical_depth=%d, want >= 0", id, row.criticalDepth)
+		}
+		if row.inCycle != 0 {
+			t.Fatalf("%s in_cycle=%d, want 0", id, row.inCycle)
+		}
+	}
+
+	assertMetrics("root-a", 0, 1)
+	assertMetrics("child-b", 1, 1)
+	assertMetrics("leaf-c", 1, 0)
 }
 
 // TestExportPages_CSSPresent validates CSS files are included
@@ -547,9 +633,9 @@ func TestExportPages_DarkModeSupport(t *testing.T) {
 
 	// Check for dark mode infrastructure
 	darkModeIndicators := []string{
-		"darkMode",          // Tailwind darkMode config
-		"dark:",             // Tailwind dark: prefix classes
-		"dark-mode",         // Generic dark mode references
+		"darkMode",             // Tailwind darkMode config
+		"dark:",                // Tailwind dark: prefix classes
+		"dark-mode",            // Generic dark mode references
 		"prefers-color-scheme", // Media query detection
 	}
 
@@ -628,9 +714,9 @@ func TestExportPages_ResponsiveLayout(t *testing.T) {
 
 	// Check for responsive classes (Tailwind breakpoints)
 	responsiveIndicators := []string{
-		"sm:",  // Small breakpoint
-		"md:",  // Medium breakpoint
-		"lg:",  // Large breakpoint
+		"sm:",    // Small breakpoint
+		"md:",    // Medium breakpoint
+		"lg:",    // Large breakpoint
 		"max-w-", // Max width containers
 	}
 
@@ -1171,11 +1257,11 @@ func TestExportPages_DetailPaneMarkup(t *testing.T) {
 
 	// Verify detail pane markup exists
 	detailPaneMarkers := []string{
-		"graphDetailNode",           // Alpine state variable
+		"graphDetailNode",            // Alpine state variable
 		"x-show=\"graphDetailNode\"", // Conditional display
-		"graphDetailNode?.title",    // Title binding
-		"graphDetailNode?.status",   // Status binding
-		"graphDetailNode?.id",       // ID binding
+		"graphDetailNode?.title",     // Title binding
+		"graphDetailNode?.status",    // Status binding
+		"graphDetailNode?.id",        // ID binding
 	}
 
 	for _, marker := range detailPaneMarkers {
@@ -1299,9 +1385,9 @@ func TestExportPages_GraphJSSelectNodeHandler(t *testing.T) {
 
 	// Verify selectNode function exists
 	handlers := []string{
-		"function selectNode",     // Function definition
+		"function selectNode",        // Function definition
 		"export function selectNode", // Or exported
-		"bv-graph:nodeClick",      // Custom event dispatch
+		"bv-graph:nodeClick",         // Custom event dispatch
 	}
 
 	foundSelectNode := false
@@ -1326,8 +1412,8 @@ func TestExportPages_GraphJSSelectNodeHandler(t *testing.T) {
 
 	// Verify refresh/redraw capability
 	refreshHandlers := []string{
-		"refreshGraph",           // Custom helper
-		".graphData(",            // ForceGraph redraw pattern
+		"refreshGraph",            // Custom helper
+		".graphData(",             // ForceGraph redraw pattern
 		"graphInstance.graphData", // Alternative pattern
 	}
 
@@ -1424,9 +1510,9 @@ func TestExportPages_PrecomputedLayoutUsedByViewer(t *testing.T) {
 
 	// Verify ForceGraph integration markers
 	forceGraphMarkers := []string{
-		"ForceGraph",              // Library reference
-		"forceGraphModule",        // Module instance
-		"initForceGraphView",      // Init function
+		"ForceGraph",         // Library reference
+		"forceGraphModule",   // Module instance
+		"initForceGraphView", // Init function
 	}
 
 	for _, marker := range forceGraphMarkers {
