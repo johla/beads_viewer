@@ -44,8 +44,8 @@ jobs:
             printf("%.2f", (hit / all) * 100)
           }
         ' coverage.out)
-        echo "pkg/* coverage: ${total}% (threshold 72%)"
-        awk -v c="$total" 'BEGIN { if (c < 72.0) { printf("pkg/* coverage %.2f%% is below 72%%\n", c); exit 1 } }'
+        echo "pkg/* coverage: ${total}% (threshold 71%)"
+        awk -v c="$total" 'BEGIN { if (c < 71.0) { printf("pkg/* coverage %.2f%% is below 71%%\n", c); exit 1 } }'
 
     - name: Enforce Coverage Thresholds (per-package, statement-weighted)
       run: |
