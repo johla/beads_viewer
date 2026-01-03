@@ -136,12 +136,12 @@ const contextHelpBoard = `## Board View
 **Navigation**
   h/l       Move between columns
   j/k       Move within column
-  1-4/H     Jump to column by number/first
+  1-4       Jump to column by number
+  H/L       Jump to first/last column
   gg/G      Go to top/bottom of column
 
 **Filtering**
   o/c/r     Filter: open/closed/ready
-  L         Open label picker
 
 **Search**
   /         Start search
