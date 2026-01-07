@@ -1281,6 +1281,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, tea.Batch(cmds...)
 
+	case SnapshotErrorMsg:
+		// Background worker encountered an error loading/processing data
+		// Log the error; if recoverable, we'll try again on next file change
+		if msg.Err != nil {
+			// TODO: Display error in status bar or notification area
+			// For now, just log it
+			_ = msg.Recoverable // Suppress unused variable warning
+		}
+		return m, nil
+
 	case FileChangedMsg:
 		// File changed on disk - reload issues and recompute analysis
 		if m.beadsPath == "" {

@@ -4,11 +4,13 @@ package ui
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/Dicklesworthstone/beads_viewer/pkg/analysis"
 	"github.com/Dicklesworthstone/beads_viewer/pkg/loader"
 	"github.com/Dicklesworthstone/beads_viewer/pkg/watcher"
 )
@@ -39,6 +41,7 @@ type BackgroundWorker struct {
 	dirty    bool // True if a change came in while processing
 	snapshot *DataSnapshot
 	started  bool // True if Start() has been called
+	lastHash string // Content hash of last processed snapshot (for dedup)
 
 	// Components
 	watcher *watcher.Watcher
@@ -208,6 +211,7 @@ func (w *BackgroundWorker) process() {
 	w.mu.Unlock()
 
 	// Load and build snapshot
+	// Returns nil if content unchanged (dedup) or on error
 	snapshot := w.buildSnapshot()
 
 	w.mu.Lock()
@@ -216,12 +220,15 @@ func (w *BackgroundWorker) process() {
 		w.mu.Unlock()
 		return
 	}
-	w.snapshot = snapshot
+	// Only update snapshot if we got a new one (nil means deduped or error)
+	if snapshot != nil {
+		w.snapshot = snapshot
+	}
 	wasDirty := w.dirty
 	w.state = WorkerIdle
 	w.mu.Unlock()
 
-	// Notify UI
+	// Notify UI only if we have a new snapshot
 	if w.program != nil && snapshot != nil {
 		w.program.Send(SnapshotReadyMsg{Snapshot: snapshot})
 	}
@@ -233,26 +240,76 @@ func (w *BackgroundWorker) process() {
 }
 
 // buildSnapshot loads data and constructs a new DataSnapshot.
+// This is called from the worker goroutine (NOT the UI thread).
+// Returns nil if beadsPath is empty, loading fails, or content is unchanged.
 func (w *BackgroundWorker) buildSnapshot() *DataSnapshot {
 	if w.beadsPath == "" {
 		return nil
 	}
 
+	start := time.Now()
+
 	// Load issues from file
 	issues, err := loader.LoadIssuesFromFile(w.beadsPath)
 	if err != nil {
-		// TODO: Send error message to UI
+		log.Printf("buildSnapshot: error loading %s: %v", w.beadsPath, err)
+		// Send error to UI
+		if w.program != nil {
+			w.program.Send(SnapshotErrorMsg{
+				Err:         err,
+				Recoverable: true, // File errors are usually recoverable
+			})
+		}
 		return nil
 	}
 
-	// Build snapshot
+	loadDuration := time.Since(start)
+
+	// Compute content hash for dedup
+	hash := analysis.ComputeDataHash(issues)
+
+	// Check if content is unchanged (dedup optimization)
+	w.mu.RLock()
+	lastHash := w.lastHash
+	w.mu.RUnlock()
+
+	if hash == lastHash && lastHash != "" {
+		log.Printf("buildSnapshot: content unchanged (hash=%s), skipping rebuild", hash[:16])
+		return nil
+	}
+
+	// Build snapshot (includes Phase 1 analysis)
+	analyzeStart := time.Now()
 	builder := NewSnapshotBuilder(issues)
-	return builder.Build()
+	snapshot := builder.Build()
+	analyzeDuration := time.Since(analyzeStart)
+
+	// Update lastHash for future dedup checks
+	w.mu.Lock()
+	w.lastHash = hash
+	w.mu.Unlock()
+
+	// Store hash in snapshot for external access
+	if snapshot != nil {
+		snapshot.DataHash = hash
+	}
+
+	totalDuration := time.Since(start)
+	log.Printf("buildSnapshot: loaded %d issues (load=%v, analyze=%v, total=%v, hash=%s)",
+		len(issues), loadDuration, analyzeDuration, totalDuration, hash[:16])
+
+	return snapshot
 }
 
 // SnapshotReadyMsg is sent to the UI when a new snapshot is ready.
 type SnapshotReadyMsg struct {
 	Snapshot *DataSnapshot
+}
+
+// SnapshotErrorMsg is sent to the UI when snapshot building fails.
+type SnapshotErrorMsg struct {
+	Err         error
+	Recoverable bool // True if we expect to recover on next file change
 }
 
 // Phase2UpdateMsg is sent when Phase 2 analysis completes.
@@ -268,4 +325,20 @@ func (w *BackgroundWorker) WatcherChanged() <-chan struct{} {
 		return nil
 	}
 	return w.watcher.Changed()
+}
+
+// LastHash returns the content hash from the last successful snapshot build.
+// Useful for testing and debugging.
+func (w *BackgroundWorker) LastHash() string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.lastHash
+}
+
+// ResetHash clears the stored content hash, forcing the next buildSnapshot
+// to process even if content is unchanged. Useful for testing.
+func (w *BackgroundWorker) ResetHash() {
+	w.mu.Lock()
+	w.lastHash = ""
+	w.mu.Unlock()
 }
